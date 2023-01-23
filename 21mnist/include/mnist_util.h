@@ -14,7 +14,8 @@
 #include <stdint.h>
 #include <time.h>
 #include <unistd.h>
-#include <ieee754.h>
+#include <ieee754.h>        // These are the floating point data types
+// #include <MacTypes.h>       // maybe contains the necessary types but apparently not really...
 
 #if __CUDACC__
 #include "cuda_util.h"
