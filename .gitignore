@@ -2,3 +2,4 @@
 *.log
 21mnist/exe/
 *.pdf
+.vscode/
