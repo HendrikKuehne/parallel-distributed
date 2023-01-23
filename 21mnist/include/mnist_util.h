@@ -14,8 +14,9 @@
 #include <stdint.h>
 #include <time.h>
 #include <unistd.h>
-#include <ieee754.h>        // These are the floating point data types
-// #include <MacTypes.h>       // maybe contains the necessary types but apparently not really...
+#if 0
+#include <ieee754.h>
+#endif
 
 #if __CUDACC__
 #include "cuda_util.h"
@@ -413,6 +414,10 @@ struct rnd_gen_t {
    */
   __device__ __host__
   double rand01() {
+#if 1
+    next();
+    return x / (double)(1UL << 48);
+#else
     union ieee754_double temp;
     /* Compute next state.  */
     next();
@@ -424,6 +429,7 @@ struct rnd_gen_t {
     temp.ieee.mantissa1 = (x & ((1UL << 28) - 1)) << 4;
     /* Please note the lower 4 bits of mantissa1 are always 0.  */
     return temp.d - 1.0;
+#endif
   }
   /**
      @brief return a long between 0 to 2^31 - 1
@@ -706,12 +712,17 @@ struct logger {
     log(2, "dropout-seed-2=%ld", opt.dropout_seed_2);
     log(2, "grad-dbg=%d", opt.grad_dbg);
     log(2, "algo=%d", opt.algo);
+    log(2, "algo_s=%s", opt.algo_s);       // added
+    log(2, "cuda_algo=%d", opt.cuda_algo); // added
     log(2, "log=%s", opt.log);
     return 1;
   }
   /**
      @brief log hostname for the record
    */
+#ifndef HOST_NAME_MAX
+#define HOST_NAME_MAX 64
+#endif
   int log_host() {
     char name[HOST_NAME_MAX+1];
     name[0] = 0;
