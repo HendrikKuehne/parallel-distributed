@@ -180,16 +180,17 @@ struct Convolution2D {
         tsc_t t1 = get_tsc();
         log_end_fun(lgr, t0, t1);
     }
+
     /**
          @brief the baseline (serial) implementation of forward
          @param (x) input images
          @param (training) 1 if it is called in training not testing
 
          @details called both by cpu implementation (forward_cpu_base) and
-         cuda implementation (forward_cuda_base). the call sequence
-         forward -> forward_cpu_base -> forward_base on cpu and and is
+         cuda implementation (forward_cuda_base). the call sequences are
+         forward -> forward_cpu_base -> forward_base on cpu and
          forward -> forward_cuda_base -> forward_cuda_base_global ->
-         forward_cuda_base_device -> forward_base
+         forward_cuda_base_device -> forward_base on gpu
 
          @sa forward
          @sa forward_cpu_base
@@ -222,6 +223,51 @@ struct Convolution2D {
             }
         }
     }
+
+    /**
+         @brief My implementation of a forward using simd (nothig different by now). Called
+         by the implementations algo_cpu_simd and algo_cpu_simd_omp
+         @param (x) input images
+         @param (training) 1 if it is called in training not testing
+
+         @details called both by cpu implementation (forward_cpu_base) and
+         cuda implementation (forward_cuda_base). the call sequences are
+         forward -> forward_cpu_base -> forward_base on cpu and
+         forward -> forward_cuda_base -> forward_cuda_base_global ->
+         forward_cuda_base_device -> forward_base on gpu
+
+         @sa forward
+         @sa forward_cpu_base
+         @sa forward_cuda_base
+         @sa forward_cuda_base_global
+         @sa forward_cuda_base_device
+    */
+    __device__ __host__ 
+    void forward_simd(tensor<real,maxB,IC,H,W>& x, int training) {
+        (void)training;
+        idx_t B = x.n0;                         // batch size
+        y.set_n0(B);
+        x_ptr = &x;                                 // save pointer to input for backward
+        for (idx_t s = 0; s < B; s++) {             // for each sample
+            for (idx_t oc = 0; oc < OC; oc++) { // for each output channel
+                for (idx_t i = 0; i < H - K + 1; i++) {     // for each output pixel
+                    for (idx_t j = 0; j < W - K + 1; j++) { // for each output pixel
+                        // calculate a single output pixel
+                        real v = 0.0;
+                        for (idx_t ic = 0; ic < IC; ic++) { // input channel
+                            for (idx_t di = 0; di < K; di++) {
+                                for (idx_t dj = 0; dj < K; dj++) {
+                                    v += w(oc,ic,di,dj) * x(s,ic,i+di,j+dj);
+                                }
+                            }
+                        }
+                        y(s,oc,i,j) = v + b(oc);
+                    }
+                }
+            }
+        }
+    }
+
     /**
          @brief the device function of forward called from the 
          global (non-member) function
@@ -280,6 +326,17 @@ struct Convolution2D {
     }
 
     /**
+         @brief Custom forward for the cpu version using simd
+         @param (x) input images
+         @param (training) 1 if it is called in training not testing
+         @sa forward
+         @sa forward_simd
+    */
+    void forward_cpu_simd(tensor<real,maxB,IC,H,W>& x, int training) {
+        forward_simd(x, training);
+    }
+
+    /**
          @brief forward phase of the layer
          @param (x) input images
          @param (training) 1 if it is called in training not testing
@@ -302,6 +359,10 @@ struct Convolution2D {
             forward_cuda_base(x, training); break;
         case algo_cpu_test:
             forward_cpu_test(x, training); break;
+        case algo_cpu_simd:
+            forward_cpu_simd(x, training); break;
+        case algo_cpu_simd_omp:
+            forward_cpu_simd(x, training); break;
         default:
             if (opt.cuda_algo) {
                 forward_cuda_base(x, training);

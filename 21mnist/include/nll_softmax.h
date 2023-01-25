@@ -49,7 +49,7 @@ struct NLLSoftmax {
      @param (rg) random number generator for initializing weights
      @param (cfg) configuration parameters
   */
-  void init(cmdline_opt opt, logger * lgr, rnd_gen_t& rg, NLLSoftmaxCfg cfg) {
+  void init(cmdline_opt opt, logger * lgr, rnd_gen_t& rg, NLLSoftmaxCfg cfg){
     this->opt = opt;
     this->lgr = lgr;
     (void)rg;
@@ -64,7 +64,7 @@ struct NLLSoftmax {
      point to the corresponding subjects in the device memory.
      if dev is not null, all dev fields become null.
   */
-  void set_dev(NLLSoftmax<maxB,nC>* dev) {
+  void set_dev(NLLSoftmax<maxB,nC>* dev){
 #if __CUDACC__
     this->dev = dev;
     y.set_dev(dev ? &dev->y : 0);
@@ -75,152 +75,203 @@ struct NLLSoftmax {
 #endif
   }
 
-  /**
-     @brief compute y = log(softmax(x))
-     @param (x) a matrix 
-     @param (y) output vector
-     @details for 1D vector x x = (x_0, ..., x_{n-1}), 
-     
-                           (exp(x_0)     / Σ_j exp(x_j))
-     logsoftmax(x)   = log (exp(x_1)     / Σ_j exp(x_j))
-                           (   ...       / Σ_j exp(x_j))
-                           (exp(x_{n-1}) / Σ_j exp(x_j))
+    /**
+       @brief compute y = log(softmax(x))
+       @param (x) a matrix 
+       @param (y) output vector
+       @details for 1D vector x x = (x_0, ..., x_{n-1}), 
 
-     the input to this function is essentially a two 
-     dimensional matrix (4D array whose last two axes
-     have only one element), which is simply a set of
-     vectors.
+                             (exp(x_0)     / Σ_j exp(x_j))
+       logsoftmax(x)   = log (exp(x_1)     / Σ_j exp(x_j))
+                             (   ...       / Σ_j exp(x_j))
+                             (exp(x_{n-1}) / Σ_j exp(x_j))
 
- */
-  __device__ __host__
-  void log_softmax(tensor<real,maxB,nC>& x, tensor<real,maxB,nC>& y) {
-    const idx_t B = x.n0;
-    y.set_n0(B);
-    for (long b = 0; b < B; b++) {
-      long m = 0;
-      for (long c = 0; c < nC; c++) {
-        m = (x(b,m) < x(b,c) ? c : m);
-      }
-      real v = 0.0;
-      for (long c = 0; c < nC; c++) {
-        y(b,c) = x(b,c) - x(b,m);
-        v += exp(y(b,c));
-      }
-      real logv = log(v);
-      for (long c = 0; c < nC; c++) {
-        y(b,c) -= logv;
-      }
+       the input to this function is essentially a two 
+       dimensional matrix (4D array whose last two axes
+       have only one element), which is simply a set of
+       vectors.
+    */
+    __device__ __host__
+    void log_softmax(tensor<real,maxB,nC>& x, tensor<real,maxB,nC>& y){
+        const idx_t B = x.n0;
+        y.set_n0(B);
+        for(long b = 0; b < B; b++){
+            long m = 0;
+            for(long c = 0; c < nC; c++){
+                m = (x(b,m) < x(b,c) ? c : m);
+            }
+            real v = 0.0;
+            for(long c = 0; c < nC; c++){
+                y(b,c) = x(b,c) - x(b,m);
+                v += exp(y(b,c));
+            }
+            real logv = log(v);
+            for(long c = 0; c < nC; c++){
+                y(b,c) -= logv;
+            }
+        }
     }
-  }
-  /**
-     @brief the baseline (serial) implementation of forward
-     @param (x) input images
-     @param (t) true label
-     @param (training) 1 if it is called in training not testing
 
-     @details called both by cpu implementation (forward_cpu_base) and
-     cuda implementation (forward_cuda_base). the call sequence
-     forward -> forward_cpu_base -> forward_base on cpu and and is
-     forward -> forward_cuda_base -> forward_cuda_base_global ->
-     forward_cuda_base_device -> forward_base
+    /**
+       @brief the baseline (serial) implementation of forward
+       @param (x) input images
+       @param (t) true label
+       @param (training) 1 if it is called in training not testing
 
-     @sa forward
-     @sa forward_cpu_base
-     @sa forward_cuda_base
-     @sa forward_cuda_base_global
-     @sa forward_cuda_base_device
-  */
-  __device__ __host__
-  void forward_base(tensor<real,maxB,nC>& x, tensor<idx_t,maxB>& t, int training) {
-    (void)training;
-    const idx_t B = x.n0;
-    l.set_n0(B);
-    log_softmax(x, y);
-    for (idx_t b = 0; b < B; b++) {
-      l(b) = -y(b,t(b));
+       @details called both by cpu implementation (forward_cpu_base) and
+       cuda implementation (forward_cuda_base). the call sequences are
+       forward -> forward_cpu_base -> forward_base on cpu and
+       forward -> forward_cuda_base -> forward_cuda_base_global ->
+       forward_cuda_base_device -> forward_base
+
+       @sa forward
+       @sa forward_cpu_base
+       @sa forward_cuda_base
+       @sa forward_cuda_base_global
+       @sa forward_cuda_base_device
+    */
+    __device__ __host__
+    void forward_base(tensor<real,maxB,nC>& x, tensor<idx_t,maxB>& t, int training){
+        (void)training;
+        const idx_t B = x.n0;
+        l.set_n0(B);
+        log_softmax(x, y);
+        for(idx_t b = 0; b < B; b++){
+            l(b) = -y(b,t(b));
+        }
     }
-  }
-  /**
-     @brief the device function of forward called from the 
-     global (non-member) function
-     @param (x) input images
-     @param (t) true label
-     @param (training) 1 if it is called in training not testing
-     @sa forward
-     @sa forward_cuda_base
-     @sa forward_cuda_base_global
-     @sa forward_base
-  */
-  __device__
-  void forward_cuda_base_device(tensor<real,maxB,nC>& x, tensor<idx_t,maxB>& t, int training) {
-    forward_base(x, t, training);
-  }
-  /**
-     @brief a cuda version of baseline code called from the 
-     entry function (forward)
-     @param (x) input images
-     @param (t) true label
-     @param (training) 1 if it is called in training not testing
-     @sa forward
-     @sa forward_cuda_base_global
-     @sa forward_cuda_base_device
-     @sa forward_base
-  */
-  void forward_cuda_base(tensor<real,maxB,nC>& x, tensor<idx_t,maxB>& t, int training) {
-#if __CUDACC__
-    launch_and_sync((forward_cuda_base_global<<<1,1>>>(dev, x.dev, t.dev, training)));
-#else
-    (void)x;
-    (void)t;
-    (void)training;
-    err_cuda_code_non_cuda_compiler(opt.algo_s);
-#endif
-  }
-  /**
-     @brief a cpu version of baseline code called from the 
-     entry function (forward)
-     @param (x) input images
-     @param (t) true label
-     @param (training) 1 if it is called in training not testing
-     @sa forward
-     @sa forward_base
-  */
-  void forward_cpu_base(tensor<real,maxB,nC>& x, tensor<idx_t,maxB>& t, int training) {
-    forward_base(x, t, training);
-  }
-  /**
-     @brief forward phase of the layer
-     @param (x) input images
-     @param (t) true label
-     @param (training) 1 if it is called in training not testing
-     @sa forward_base
-     @sa forward_cpu_base
-     @sa forward_cuda_base
-     @sa forward_cuda_base_global
-     @sa forward_cuda_base_device
-     @sa backward
-     @sa update
-  */
-  tensor<real,maxB>& forward(tensor<real,maxB,nC>& x, tensor<idx_t,maxB>& t, int training) {
-    log_start_fun(lgr);
-    tsc_t t0 = get_tsc();
-    switch (opt.algo) {
-      /* add case for your implementations here */
-    case algo_cpu_base:
-      forward_cpu_base(x, t, training); break;
-    case algo_cuda_base:
-      forward_cuda_base(x, t, training); break;
-    default:
-      if (opt.cuda_algo) {
-        forward_cuda_base(x, t, training);
-      } else {
-        forward_cpu_base(x, t, training);
-      }        
+
+    /**
+       @brief An implementation of forward using omp
+       @param (x) input images
+       @param (t) true label
+       @param (training) 1 if it is called in training not testing
+
+       @details called both by cpu implementation (forward_cpu_base) and
+       cuda implementation (forward_cuda_base). the call sequences are
+       forward -> forward_cpu_base -> forward_base on cpu and
+       forward -> forward_cuda_base -> forward_cuda_base_global ->
+       forward_cuda_base_device -> forward_base
+
+       @sa forward
+       @sa forward_cpu_base
+       @sa forward_cuda_base
+       @sa forward_cuda_base_global
+       @sa forward_cuda_base_device
+    */
+    __device__ __host__
+    void forward_omp(tensor<real,maxB,nC>& x, tensor<idx_t,maxB>& t, int training){
+        (void)training;
+        const idx_t B = x.n0;
+        l.set_n0(B);
+        log_softmax(x, y);
+
+        #pragma omp parallel for schedule(dynamic)
+        for(idx_t b = 0; b < B; b++){
+            l(b) = -y(b,t(b));
+        }
     }
-    tsc_t t1 = get_tsc();
-    log_end_fun(lgr, t0, t1);
-    return l;
-  }
+
+    /**
+       @brief the device function of forward called from the 
+       global (non-member) function
+       @param (x) input images
+       @param (t) true label
+       @param (training) 1 if it is called in training not testing
+       @sa forward
+       @sa forward_cuda_base
+       @sa forward_cuda_base_global
+       @sa forward_base
+    */
+    __device__
+    void forward_cuda_base_device(tensor<real,maxB,nC>& x, tensor<idx_t,maxB>& t, int training){
+      forward_base(x, t, training);
+    }
+
+    /**
+       @brief a cuda version of baseline code called from the 
+       entry function (forward)
+       @param (x) input images
+       @param (t) true label
+       @param (training) 1 if it is called in training not testing
+       @sa forward
+       @sa forward_cuda_base_global
+       @sa forward_cuda_base_device
+       @sa forward_base
+    */
+    void forward_cuda_base(tensor<real,maxB,nC>& x, tensor<idx_t,maxB>& t, int training){
+    #if __CUDACC__
+        launch_and_sync((forward_cuda_base_global<<<1,1>>>(dev, x.dev, t.dev, training)));
+    #else
+        (void)x;
+        (void)t;
+        (void)training;
+        err_cuda_code_non_cuda_compiler(opt.algo_s);
+    #endif
+    }
+
+    /**
+       @brief a cpu version of baseline code called from the 
+       entry function (forward)
+       @param (x) input images
+       @param (t) true label
+       @param (training) 1 if it is called in training not testing
+       @sa forward
+       @sa forward_base
+    */
+    void forward_cpu_base(tensor<real,maxB,nC>& x, tensor<idx_t,maxB>& t, int training){
+        forward_base(x, t, training);
+    }
+
+    /**
+       @brief The omp version of the baseline code called from the 
+       entry function (forward)
+       @param (x) input images
+       @param (t) true label
+       @param (training) 1 if it is called in training not testing
+       @sa forward
+       @sa forward_base
+    */
+    void forward_cpu_omp(tensor<real,maxB,nC>& x, tensor<idx_t,maxB>& t, int training){
+        forward_omp(x, t, training);
+    }
+
+    /**
+       @brief forward phase of the layer
+       @param (x) input images
+       @param (t) true label
+       @param (training) 1 if it is called in training not testing
+       @sa forward_base
+       @sa forward_cpu_base
+       @sa forward_cuda_base
+       @sa forward_cuda_base_global
+       @sa forward_cuda_base_device
+       @sa backward
+       @sa update
+    */
+    tensor<real,maxB>& forward(tensor<real,maxB,nC>& x, tensor<idx_t,maxB>& t, int training){
+        log_start_fun(lgr);
+        tsc_t t0 = get_tsc();
+        switch(opt.algo){
+            /* add case for your implementations here */
+        case algo_cpu_base:
+            forward_cpu_base(x, t, training); break;
+        case algo_cuda_base:
+            forward_cuda_base(x, t, training); break;
+        case algo_cpu_simd_omp:
+            forward_cpu_omp(x, t, training); break;
+        default:
+            if(opt.cuda_algo){
+                forward_cuda_base(x, t, training);
+            }else{
+                forward_cpu_base(x, t, training);
+            }        
+        }
+        tsc_t t1 = get_tsc();
+        log_end_fun(lgr, t0, t1);
+        return l;
+    }
+
   /**
      @brief the baseline (serial) implementation of backward
      @param (gy) gradient of loss with respect to the output
@@ -237,12 +288,12 @@ struct NLLSoftmax {
      @sa backward_base
   */
   __device__ __host__
-  void backward_base(tensor<real,maxB>& gy, tensor<idx_t,maxB>& t) {
+  void backward_base(tensor<real,maxB>& gy, tensor<idx_t,maxB>& t){
     const idx_t B = gy.n0;
     gx.set_n0(B);
-    for (idx_t b = 0; b < B; b++) {
-      for (idx_t c = 0; c < nC; c++) {
-        if (c == t(b)) {
+    for(idx_t b = 0; b < B; b++){
+      for(idx_t c = 0; c < nC; c++){
+        if (c == t(b)){
           gx(b,c) = gy(b) * (-1 + exp(y(b,c)));
         } else {
           gx(b,c) = gy(b) *       exp(y(b,c));
@@ -260,7 +311,7 @@ struct NLLSoftmax {
      @sa backward_base
   */
   __device__
-  void backward_cuda_base_device(tensor<real,maxB>& gy, tensor<idx_t,maxB>& t) {
+  void backward_cuda_base_device(tensor<real,maxB>& gy, tensor<idx_t,maxB>& t){
     backward_base(gy, t);
   }
   /**
@@ -272,7 +323,7 @@ struct NLLSoftmax {
      @sa backward_cuda_base_device
      @sa backward_base
   */
-  void backward_cuda_base(tensor<real,maxB>& gy, tensor<idx_t,maxB>& t) {
+  void backward_cuda_base(tensor<real,maxB>& gy, tensor<idx_t,maxB>& t){
 #if __CUDACC__
     launch_and_sync((backward_cuda_base_global<<<1,1>>>(dev, gy.dev, t.dev)));
 #else
@@ -288,7 +339,7 @@ struct NLLSoftmax {
      @sa backward
      @sa backward_base
   */
-  void backward_cpu_base(tensor<real,maxB>& gy, tensor<idx_t,maxB>& t) {
+  void backward_cpu_base(tensor<real,maxB>& gy, tensor<idx_t,maxB>& t){
     backward_base(gy, t);
   }
   /**
@@ -307,17 +358,17 @@ struct NLLSoftmax {
      @sa forward
      @sa update
   */
-  tensor<real,maxB,nC>& backward(tensor<real,maxB>& gy, tensor<idx_t,maxB>& t) {
+  tensor<real,maxB,nC>& backward(tensor<real,maxB>& gy, tensor<idx_t,maxB>& t){
     log_start_fun(lgr);
     tsc_t t0 = get_tsc();
-    switch (opt.algo) {
+    switch (opt.algo){
       /* add case for your implementations here */
     case algo_cpu_base:
       backward_cpu_base(gy, t); break;
     case algo_cuda_base:
       backward_cuda_base(gy, t); break;
     default:
-      if (opt.cuda_algo) {
+      if (opt.cuda_algo){
         backward_cuda_base(gy, t);
       } else {
         backward_cpu_base(gy, t);
@@ -334,7 +385,7 @@ struct NLLSoftmax {
      @param (q) maximum value of a component
      @details as this layer has no weights, it's noop
   */
-  void rand_grad(rnd_gen_t& rg, real p, real q) {
+  void rand_grad(rnd_gen_t& rg, real p, real q){
     (void)rg;
     (void)p;
     (void)q;
@@ -344,7 +395,7 @@ struct NLLSoftmax {
      @param (o) the object from which gradients get copied
      @details as this layer has no weights, it's noop
   */
-  void copy_grad(NLLSoftmax<maxB,nC>& o) {
+  void copy_grad(NLLSoftmax<maxB,nC>& o){
     (void)o;
   }
   /**
@@ -352,7 +403,7 @@ struct NLLSoftmax {
      @param (alpha) alpha of w += alpha * gw
      @details as this layer has no weights, it's noop
   */
-  void add_grad(real alpha) {
+  void add_grad(real alpha){
     (void)alpha;
   }
   /**
@@ -360,7 +411,7 @@ struct NLLSoftmax {
      @param (o) the object to take the inner product with
      @details as this layer has no weights, it returns zero
   */
-  double grad_dot_grad(NLLSoftmax<maxB,nC>& o) {
+  double grad_dot_grad(NLLSoftmax<maxB,nC>& o){
     (void)o;
     return 0.0;
   }
@@ -379,7 +430,7 @@ struct NLLSoftmax {
    it calls grad_check repeatedly to test
    the implementation of backward of nll_softmax.
 */
-int nll_softmax_main(int argc, char ** argv) {
+int nll_softmax_main(int argc, char ** argv){
   cmdline_opt opt = parse_args(argc, argv);
   const idx_t maxB = MAX_BATCH_SIZE;
   const idx_t B = min_i(maxB, opt.batch_size);
@@ -395,7 +446,7 @@ int nll_softmax_main(int argc, char ** argv) {
   double max_e = 0.0;
   double sum_e = 0.0;
   NLLSoftmaxCfg cfg;
-  for (int iter = 0; iter < n_checks; iter++) {
+  for(int iter = 0; iter < n_checks; iter++){
     printf("==== %d ====\n", iter);
     double e = grad_check_loss<NLLSoftmax<maxB,nC>,
                                tensor<real,maxB,nC>,
