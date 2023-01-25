@@ -89,6 +89,7 @@ typedef enum {
   /* algo_cuda_fast? */
   /* algo_cpu_super_fast? */
   /* algo_cuda_super_fast? */
+  algo_cpu_test,
   
   algo_invalid,
 } algo_t;
