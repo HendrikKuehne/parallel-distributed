@@ -79,19 +79,12 @@ static void err_cuda_code_non_cuda_compiler_(const char * file, int line, const 
    @details add your algorithm in this enum
  */
 typedef enum {
-  algo_cpu_base,
-  algo_cuda_base,
-  /* add your new algorithm here (name it arbitrarily) */
-  /* algo_cpu_simd? */
-  /* algo_cpu_omp */
-  /* algo_cpu_simd_omp? */
-  /* algo_cpu_fast? */
-  /* algo_cuda_fast? */
-  /* algo_cpu_super_fast? */
-  /* algo_cuda_super_fast? */
-  algo_cpu_test,
-  
-  algo_invalid,
+    algo_cpu_base,
+    algo_cuda_base,
+    algo_cpu_test,
+        /*I will only try to define a new forward function for the convolutional layer*/
+    
+    algo_invalid,
 } algo_t;
 
 /**
@@ -100,17 +93,19 @@ typedef enum {
    so that it recognizes your algorithm
  */
 static algo_t parse_algo(const char * s) {
-  if (strcmp(s, "cpu_base") == 0) {
-    return algo_cpu_base;
-  } else if (strcmp(s, "cuda_base") == 0) {
-    return algo_cuda_base;
-    /* add cases here to handle your algorithms
-       } else if (strcmp(s, "cpu_fast") == 0) {
-       return algo_cpu_fast;
-    */
-  } else {
-    return algo_invalid;
-  }
+    if(strcmp(s, "cpu_base") == 0){
+        return algo_cpu_base;
+    }else if(strcmp(s, "cuda_base") == 0){
+        return algo_cuda_base;
+    }else if(strcmp(s, "cpu_test") == 0){
+        return algo_cpu_test;
+        /* add cases here to handle your algorithms
+           } else if (strcmp(s, "cpu_fast") == 0) {
+           return algo_cpu_fast;
+        */
+    }else{
+        return algo_invalid;
+    }
 }
 
 /**
