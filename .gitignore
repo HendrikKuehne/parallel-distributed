@@ -3,3 +3,4 @@
 21mnist/exe/
 *.pdf
 .vscode/
+.personal_access_token.txt
