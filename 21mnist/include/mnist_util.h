@@ -14,9 +14,12 @@
 #include<stdint.h>
 #include<time.h>
 #include<unistd.h>
-#include<arm_neon.h>        // this will probably need to be a preprocessor directive on taulec
+#ifdef __ARM_64BIT_STATE
+    #include<arm_neon.h>        // this will probably need to be a preprocessor directive on taulec
+#endif
+
 #if 0
-#include <ieee754.h>
+    #include<ieee754.h>
 #endif
 
 #if __CUDACC__
