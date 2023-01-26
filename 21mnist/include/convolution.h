@@ -258,6 +258,7 @@ struct Convolution2D{
             idx_t B = x.n0;        // batch size
             y.set_n0(B);
             x_ptr = &x;            // save pointer to input for backward
+            float32x2_t v;
             for(idx_t s = 0;s < B;s++){                             // for each sample
                 for(idx_t oc = 0;oc < OC;oc++){                     // for each output channel
                     for(idx_t i = 0;i < H - K + 1;i++){             // for each output pixel
@@ -266,7 +267,7 @@ struct Convolution2D{
                                 We will apply simd to the loop over j (over the columns in x), meaning we compute two output pixels simultaneously.
                                 We can only use simd vectors with two lanes since the dimensions of the output are 28, 26 or 24.
                             */
-                            float32x2_t v = vdup_n_f32(0);
+                            v = vdup_n_f32(0);
                             for(idx_t ic = 0;ic < IC;ic++){                       // input channel
                                 for(idx_t di = 0;di < K;di++){
                                     for(idx_t dj = 0;dj < K;dj++){
@@ -302,43 +303,43 @@ struct Convolution2D{
     }
 
     /**
-         @brief a cuda version of baseline code called from the 
-         entry function (forward)
-         @param (x) input images
-         @param (training) 1 if it is called in training not testing
-         @sa forward
-         @sa forward_cuda_base_global
-         @sa forward_cuda_base_device
-         @sa forward_base
+     @brief a cuda version of baseline code called from the 
+     entry function (forward)
+     @param (x) input images
+     @param (training) 1 if it is called in training not testing
+     @sa forward
+     @sa forward_cuda_base_global
+     @sa forward_cuda_base_device
+     @sa forward_base
     */
     void forward_cuda_base(tensor<real,maxB,IC,H,W>& x, int training){
-    #if __CUDACC__
-            launch_and_sync((forward_cuda_base_global<<<1,1>>>(dev, x.dev, training)));
-    #else
-            (void)x;
-            (void)training;
-            err_cuda_code_non_cuda_compiler(opt.algo_s);
-    #endif
+        #if __CUDACC__
+                launch_and_sync((forward_cuda_base_global<<<1,1>>>(dev, x.dev, training)));
+        #else
+                (void)x;
+                (void)training;
+                err_cuda_code_non_cuda_compiler(opt.algo_s);
+        #endif
     }
     
     /**
-         @brief a cpu version of baseline code called from the 
-         entry function (forward)
-         @param (x) input images
-         @param (training) 1 if it is called in training not testing
-         @sa forward
-         @sa forward_base
+     @brief a cpu version of baseline code called from the 
+     entry function (forward)
+     @param (x) input images
+     @param (training) 1 if it is called in training not testing
+     @sa forward
+     @sa forward_base
     */
     void forward_cpu_base(tensor<real,maxB,IC,H,W>& x, int training){
         forward_base(x, training);
     }
 
     /**
-         @brief First test of a custom forward for the cpu version
-         @param (x) input images
-         @param (training) 1 if it is called in training not testing
-         @sa forward
-         @sa forward_base
+     @brief First test of a custom forward for the cpu version
+     @param (x) input images
+     @param (training) 1 if it is called in training not testing
+     @sa forward
+     @sa forward_base
     */
     void forward_cpu_test(tensor<real,maxB,IC,H,W>& x, int training){
         forward_base(x, training);

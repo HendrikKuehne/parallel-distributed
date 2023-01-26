@@ -13,6 +13,7 @@
 #include<stdarg.h>
 #include<stdint.h>
 #include<time.h>
+#include<iostream>
 #include<unistd.h>
 #ifdef __ARM_64BIT_STATE
     #include<arm_neon.h>
@@ -93,6 +94,7 @@ typedef enum {
         /*
             Parallelizing using the simd-instructions for ARM
             * Forward for the convolutional layer in simd
+            * Forward for the linear layer in simd
         */
     algo_cpu_omp,
         /*

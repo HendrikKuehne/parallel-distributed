@@ -35,64 +35,60 @@ static float32x2_t& V(T& address){return *((float32x2_t*)address);}
  */
 __attribute__((unused))
 __device__ __host__ 
-static void range_chk_(idx_t a, idx_t x, idx_t b,
-                                             const char * a_str, const char * x_str,
-                                             const char * b_str, 
-                                             const char * file, int line){
-#if ! __CUDA_ARCH__
-    if (!(a <= x)){
-        fprintf(stderr,
-                        "error:%s:%d: index check [%s <= %s < %s] failed"
-                        " (%s = %ld)\n",
-                        file, line, a_str, x_str, b_str, x_str, (long)x);
-    }
-#endif
-    assert(a <= x);
-#if ! __CUDA_ARCH__
-    if (!(x < b)){
-        fprintf(stderr,
-                        "error:%s:%d: index check [%s <= %s < %s] failed"
-                        " (%s = %ld)\n",
-                        file, line, a_str, x_str, b_str, x_str, (long)x);
-    }
-#endif
-    assert(x < b);
+static void range_chk_(idx_t a, idx_t x, idx_t b,const char * a_str, const char * x_str,const char * b_str, const char * file, int line){
+    #if ! __CUDA_ARCH__
+        if (!(a <= x)){
+            fprintf(stderr,
+                            "error:%s:%d: index check [%s <= %s < %s] failed"
+                            " (%s = %ld)\n",
+                            file, line, a_str, x_str, b_str, x_str, (long)x);
+        }
+    #endif
+        assert(a <= x);
+    #if ! __CUDA_ARCH__
+        if (!(x < b)){
+            fprintf(stderr,
+                            "error:%s:%d: index check [%s <= %s < %s] failed"
+                            " (%s = %ld)\n",
+                            file, line, a_str, x_str, b_str, x_str, (long)x);
+        }
+    #endif
+        assert(x < b);
 }
 
 #if ARRAY_INDEX_CHECK
-/** 
-        @brief array bounds check. turn off (on) if -DARRAY_INDEX_CHECK=0 (1) is given.
-        turn it on when you are debugging your code.
-        turn it off when you are measuring the performance.
-*/
-#define range_chk(a, x, b) range_chk_(a, x, b, #a, #x, #b, __FILE__, __LINE__)
+    /** 
+     @brief array bounds check. turn off (on) if -DARRAY_INDEX_CHECK=0 (1) is given.
+     turn it on when you are debugging your code.
+     turn it off when you are measuring the performance.
+    */
+    #define range_chk(a, x, b) range_chk_(a, x, b, #a, #x, #b, __FILE__, __LINE__)
 #else
-/** 
-        @brief array bounds check. turn off (on) if -DARRAY_INDEX_CHECK=0 (1) is given.
-        turn it on when you are debugging your code.
-        turn it off when you are measuring the performance.
-*/
-#define range_chk(a, x, b) 
+    /** 
+            @brief array bounds check. turn off (on) if -DARRAY_INDEX_CHECK=0 (1) is given.
+            turn it on when you are debugging your code.
+            turn it off when you are measuring the performance.
+    */
+    #define range_chk(a, x, b) 
 #endif
 
-
 /**
-     @brief tensor (multi-dimensional array), up to four dimensions
-     @param (maxB) the maximum number of rows (elements along the first dimension)
-     @param (C) the number of elements along the second dimension
-     @param (H) the number of elements along the third dimension
-     @param (W) the number of elements along the fourth dimension
-     @details this is essentially BxCxHxW array of reals where B 
-     can be a runtime parameter <= maxB.
-     throughout the MNIST network, is is used to represent a mini-batch
-     of images (B images, each image of which has C channels, each channel
-     of which has HxW pixels.
+ @brief tensor (multi-dimensional array), up to four dimensions
+ @param (maxB) the maximum number of rows (elements along the first dimension)
+ @param (C) the number of elements along the second dimension
+ @param (H) the number of elements along the third dimension
+ @param (W) the number of elements along the fourth dimension
+ @details this is essentially BxCxHxW array of reals where B 
+ can be a runtime parameter <= maxB.
+ throughout the MNIST network, is is used to represent a mini-batch
+ of images (B images, each image of which has C channels, each channel
+ of which has HxW pixels.
 */
 template<typename T,idx_t N0,idx_t N1=1,idx_t N2=1,idx_t N3=1>
 struct tensor{
-#if __CUDACC__
-    tensor<T,N0,N1,N2,N3> * dev;        /**< pointer to the device shadow */
-#endif
+    #if __CUDACC__
+        tensor<T,N0,N1,N2,N3> * dev;        /**< pointer to the device shadow */
+    #endif
     idx_t n0;                           /**< actual number of elements across the first dimension */
     T w[N0][N1][N2][N3];                /**< elements */
     /**
@@ -122,7 +118,7 @@ struct tensor{
     }
 
     /**
-         @brief initialize elements of the array    to a single constant value
+         @brief initialize elements of the array to a single constant value
          @param (B) the number of rows to initialize
          @param (x) the value of each element
     */
@@ -404,9 +400,14 @@ struct tensor{
         }
     }
 
+    /**
+     Prints the dimensions n0,N1,N2,N3 of the tensor.
+    */
+    void print_dimensions(){std::cout << "n0 = " << n0 << " | N1 = " << N1 << " | N2 = " << N2 << " | N3 = " << N3 << std::endl;}
+
     #ifdef __ARM_64BIT_STATE
     /**
-        @brief return a simd vector over the last dimension of the tensor x at location i0,i1,i2,i3
+        @brief return a simd vector over the last dimension of the tensor x at location i0,i1,i2,i3. tensor::V is write-safe!
         @param i0,i1,i2,i3 indices
         @return A vector containing x[i0][i1][i2][i3:i3+2]
      */
