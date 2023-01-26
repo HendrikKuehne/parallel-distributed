@@ -83,12 +83,14 @@ typedef enum {
     algo_cuda_base,
     algo_cpu_test,
         /*I will only try to define a new forward function for the convolutional layer*/
-    algo_cpu_simd,
-        /*Forward for the convolutional layer in simd*/
-    algo_cpu_simd_omp,
+    algo_cpu_simd_arm,
         /*
-        Forward for the convolutional layer in simd
-        nll_softmax uses omp
+            Parallelizing using the simd-instructions for ARM
+            * Forward for the convolutional layer in simd
+        */
+    algo_cpu_omp,
+        /*
+        nll_softmax uses omp in forward and backward pass
         */
     
     algo_invalid,
@@ -106,10 +108,10 @@ static algo_t parse_algo(const char * s) {
         return algo_cuda_base;
     }else if(strcmp(s, "cpu_test") == 0){
         return algo_cpu_test;
-    }else if(strcmp(s, "cpu_simd") == 0){
-        return algo_cpu_simd;
-    }else if(strcmp(s, "cpu_simd_omp") == 0){
-        return algo_cpu_simd_omp;
+    }else if(strcmp(s, "cpu_simd_arm") == 0){
+        return algo_cpu_simd_arm;
+    }else if(strcmp(s, "cpu_omp") == 0){
+        return algo_cpu_omp;
         /* add cases here to handle your algorithms
            } else if (strcmp(s, "cpu_fast") == 0) {
            return algo_cpu_fast;

@@ -258,7 +258,7 @@ struct NLLSoftmax {
             forward_cpu_base(x, t, training); break;
         case algo_cuda_base:
             forward_cuda_base(x, t, training); break;
-        case algo_cpu_simd_omp:
+        case algo_cpu_omp:
             forward_cpu_omp(x, t, training); break;
         default:
             if(opt.cuda_algo){
@@ -272,112 +272,161 @@ struct NLLSoftmax {
         return l;
     }
 
-  /**
-     @brief the baseline (serial) implementation of backward
-     @param (gy) gradient of loss with respect to the output
-     @details called both by cpu implementation (backward_cpu_base)
-     and cuda implementation (backward_cuda_base). the call sequence
-     backward -> backward_cpu_base -> backward_base on cpu and and is
-     backward -> backward_cuda_base -> backward_cuda_base_global ->
-     backward_cuda_base_device -> backward_base
-     @sa backward
-     @sa backward_cpu_base
-     @sa backward_cuda_base
-     @sa backward_cuda_base_global
-     @sa backward_cuda_base_device
-     @sa backward_base
-  */
-  __device__ __host__
-  void backward_base(tensor<real,maxB>& gy, tensor<idx_t,maxB>& t){
-    const idx_t B = gy.n0;
-    gx.set_n0(B);
-    for(idx_t b = 0; b < B; b++){
-      for(idx_t c = 0; c < nC; c++){
-        if (c == t(b)){
-          gx(b,c) = gy(b) * (-1 + exp(y(b,c)));
-        } else {
-          gx(b,c) = gy(b) *       exp(y(b,c));
+    /**
+       @brief the baseline (serial) implementation of backward
+       @param (gy) gradient of loss with respect to the output
+       @details called both by cpu implementation (backward_cpu_base)
+       and cuda implementation (backward_cuda_base). the call sequences are
+       backward -> backward_cpu_base -> backward_base on cpu and
+       backward -> backward_cuda_base -> backward_cuda_base_global ->
+       backward_cuda_base_device -> backward_base
+       @sa backward
+       @sa backward_cpu_base
+       @sa backward_cuda_base
+       @sa backward_cuda_base_global
+       @sa backward_cuda_base_device
+       @sa backward_base
+    */
+    __device__ __host__
+    void backward_base(tensor<real,maxB>& gy, tensor<idx_t,maxB>& t){
+        const idx_t B = gy.n0;
+        gx.set_n0(B);
+        for(idx_t b = 0; b < B; b++){
+            for(idx_t c = 0; c < nC; c++){
+                if(c == t(b)){
+                    gx(b,c) = gy(b) * (-1 + exp(y(b,c)));
+                }else{
+                    gx(b,c) = gy(b) *       exp(y(b,c));
+                }
+            }
         }
-      }
     }
-  }
-  /**
-     @brief the device function of backward called from the 
-     global (non-member) function
-     @param (gy) gradient of loss with respect to the output
-     @sa backward
-     @sa backward_cuda_base
-     @sa backward_cuda_base_global
-     @sa backward_base
-  */
-  __device__
-  void backward_cuda_base_device(tensor<real,maxB>& gy, tensor<idx_t,maxB>& t){
-    backward_base(gy, t);
-  }
-  /**
-     @brief a cuda version of baseline code called from the 
-     entry function (backward)
-     @param (gy) gradient of loss with respect to the output
-     @sa backward
-     @sa backward_cuda_base_global
-     @sa backward_cuda_base_device
-     @sa backward_base
-  */
-  void backward_cuda_base(tensor<real,maxB>& gy, tensor<idx_t,maxB>& t){
-#if __CUDACC__
-    launch_and_sync((backward_cuda_base_global<<<1,1>>>(dev, gy.dev, t.dev)));
-#else
-    (void)gy;
-    (void)t;
-    err_cuda_code_non_cuda_compiler(opt.algo_s);
-#endif
-  }
-  /**
-     @brief a cpu version of baseline code called from the 
-     entry function (backward)
-     @param (gy) gradient of loss with respect to the output
-     @sa backward
-     @sa backward_base
-  */
-  void backward_cpu_base(tensor<real,maxB>& gy, tensor<idx_t,maxB>& t){
-    backward_base(gy, t);
-  }
-  /**
-     @brief calc the gradient of loss wrt the input (x)
-     @param (gy) gradient of loss with respect to the output
-     @details calc the gradient of loss wrt the input. along the way,
-     it also calculates the gradient of loss wrt weights for
-     all sublayers that have weights. since this is the entire
-     network, gy is actually a vector whose components are all 1.
-     (loss = sum of losses of each data).
-     @sa backward_cpu_base
-     @sa backward_cuda_base
-     @sa backward_cuda_base_global
-     @sa backward_cuda_base_device
-     @sa backward_base
-     @sa forward
-     @sa update
-  */
-  tensor<real,maxB,nC>& backward(tensor<real,maxB>& gy, tensor<idx_t,maxB>& t){
-    log_start_fun(lgr);
-    tsc_t t0 = get_tsc();
-    switch (opt.algo){
-      /* add case for your implementations here */
-    case algo_cpu_base:
-      backward_cpu_base(gy, t); break;
-    case algo_cuda_base:
-      backward_cuda_base(gy, t); break;
-    default:
-      if (opt.cuda_algo){
-        backward_cuda_base(gy, t);
-      } else {
-        backward_cpu_base(gy, t);
-      }        
+
+    /**
+       @brief An implementation of backward using omp
+       @param (gy) gradient of loss with respect to the output
+       @details called both by cpu implementation (backward_cpu_base)
+       and cuda implementation (backward_cuda_base). the call sequences are
+       backward -> backward_cpu_base -> backward_base on cpu and
+       backward -> backward_cuda_base -> backward_cuda_base_global ->
+       backward_cuda_base_device -> backward_base
+       @sa backward
+       @sa backward_cpu_base
+       @sa backward_cuda_base
+       @sa backward_cuda_base_global
+       @sa backward_cuda_base_device
+       @sa backward_base
+    */
+    __device__ __host__
+    void backward_omp(tensor<real,maxB>& gy, tensor<idx_t,maxB>& t){
+        const idx_t B = gy.n0;
+        gx.set_n0(B);
+        #pragma omp for collapse(2) schedule(dynamic)
+        for(idx_t b = 0; b < B; b++){
+            for(idx_t c = 0; c < nC; c++){
+                if(c == t(b)){
+                    gx(b,c) = gy(b) * (exp(y(b,c)) - 1);
+                }else{
+                    gx(b,c) = gy(b) * exp(y(b,c));
+                }
+            }
+        }
     }
-    tsc_t t1 = get_tsc();
-    log_end_fun(lgr, t0, t1);
-    return gx;
-  }
+
+    /**
+       @brief the device function of backward called from the 
+       global (non-member) function
+       @param (gy) gradient of loss with respect to the output
+       @sa backward
+       @sa backward_cuda_base
+       @sa backward_cuda_base_global
+       @sa backward_base
+    */
+    __device__
+    void backward_cuda_base_device(tensor<real,maxB>& gy, tensor<idx_t,maxB>& t){
+      backward_base(gy, t);
+    }
+
+    /**
+       @brief a cuda version of baseline code called from the 
+       entry function (backward)
+       @param (gy) gradient of loss with respect to the output
+       @sa backward
+       @sa backward_cuda_base_global
+       @sa backward_cuda_base_device
+       @sa backward_base
+    */
+    void backward_cuda_base(tensor<real,maxB>& gy, tensor<idx_t,maxB>& t){
+        #if __CUDACC__
+            launch_and_sync((backward_cuda_base_global<<<1,1>>>(dev, gy.dev, t.dev)));
+        #else
+            (void)gy;
+            (void)t;
+            err_cuda_code_non_cuda_compiler(opt.algo_s);
+        #endif
+    }
+
+    /**
+       @brief a cpu version of baseline code called from the 
+       entry function (backward)
+       @param (gy) gradient of loss with respect to the output
+       @sa backward
+       @sa backward_base
+    */
+    void backward_cpu_base(tensor<real,maxB>& gy, tensor<idx_t,maxB>& t){
+        backward_base(gy, t);
+    }
+
+    /**
+       @brief an omp version of baseline code called from the 
+       entry function (backward)
+       @param (gy) gradient of loss with respect to the output
+       @sa backward
+       @sa backward_base
+    */
+    void backward_cpu_omp(tensor<real,maxB>& gy, tensor<idx_t,maxB>& t){
+        backward_omp(gy, t);
+    }
+
+    /**
+       @brief calc the gradient of loss wrt the input (x)
+       @param (gy) gradient of loss with respect to the output
+       @details calc the gradient of loss wrt the input. along the way,
+       it also calculates the gradient of loss wrt weights for
+       all sublayers that have weights. since this is the entire
+       network, gy is actually a vector whose components are all 1.
+       (loss = sum of losses of each data).
+       @sa backward_cpu_base
+       @sa backward_cuda_base
+       @sa backward_cuda_base_global
+       @sa backward_cuda_base_device
+       @sa backward_base
+       @sa forward
+       @sa update
+    */
+    tensor<real,maxB,nC>& backward(tensor<real,maxB>& gy, tensor<idx_t,maxB>& t){
+        log_start_fun(lgr);
+        tsc_t t0 = get_tsc();
+        switch (opt.algo){
+          /* add case for your implementations here */
+        case algo_cpu_base:
+            backward_cpu_base(gy, t); break;
+        case algo_cuda_base:
+            backward_cuda_base(gy, t); break;
+        case algo_cpu_omp:
+            backward_cpu_omp(gy, t); break;
+        default:
+            if(opt.cuda_algo){
+                backward_cuda_base(gy, t);
+            }else{
+                backward_cpu_base(gy, t);
+            }        
+        }
+        tsc_t t1 = get_tsc();
+        log_end_fun(lgr, t0, t1);
+        return gx;
+    }
+
   /**
      @brief randomly set all gradients to values between p and q
      @param (rg) random number generator
