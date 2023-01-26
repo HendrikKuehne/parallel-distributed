@@ -33,21 +33,22 @@ struct Convolution2DCfg { };
      OCx(W-K+1)x(H-K+1) image, applying ICxKxK stencil to each pixel
  */
 template<idx_t maxB,idx_t IC,idx_t H,idx_t W,idx_t K,idx_t OC>
-struct Convolution2D {
-#if __CUDACC__
-    Convolution2D<maxB,IC,H,W,K,OC> * dev; /**< device shadow */
-#endif
-    cmdline_opt opt;                                 /**< command line option    */
-    logger * lgr;                                        /**< logger */
-    tensor<real,maxB,IC,H,W>* x_ptr;        /**< pointer to the input to forward (x) */
-    tensor<real,OC,IC,K,K> w;                     /**< weight (y = w ＊ x + b) */ 
-    tensor<real,OC> b;                                    /**< bias (y = w ＊ x + b) */ 
-    tensor<real,maxB,OC,H-K+1,W-K+1> y; /**< layer output */
-    tensor<real,OC,IC,K,K> gw;                    /**< ∂L/∂w */
-    tensor<real,OC> gb;                                 /**< ∂L/∂b */
-    tensor<real,maxB,IC,H,W> gx;                /**< ∂L/∂x */
-    AdaDelta<OC,IC,K,K> opt_w;                    /**< optimizer for w */
-    AdaDelta<OC> opt_b;                                 /**< optimizer for b */
+struct Convolution2D{
+    #if __CUDACC__
+        Convolution2D<maxB,IC,H,W,K,OC> * dev;/**< device shadow */
+    #endif
+    cmdline_opt opt;                       /**< command line option    */
+    logger * lgr;                          /**< logger */
+    tensor<real,maxB,IC,H,W>* x_ptr;       /**< pointer to the input to forward (x) */
+    tensor<real,OC,IC,K,K> w;              /**< weight (y = w ＊ x + b) */ 
+    tensor<real,OC> b;                     /**< bias (y = w ＊ x + b) */ 
+    tensor<real,maxB,OC,H-K+1,W-K+1> y;    /**< layer output */
+    tensor<real,OC,IC,K,K> gw;             /**< ∂L/∂w */
+    tensor<real,OC> gb;                    /**< ∂L/∂b */
+    tensor<real,maxB,IC,H,W> gx;           /**< ∂L/∂x */
+    AdaDelta<OC,IC,K,K> opt_w;             /**< optimizer for w */
+    AdaDelta<OC> opt_b;                    /**< optimizer for b */
+
     /**
          @brief initialize the layer
          @param (opt) command line options
@@ -67,6 +68,7 @@ struct Convolution2D {
         opt_w.init(opt.lr);
         opt_b.init(opt.lr);
     }
+
     /**
          @brief set the device pointer for this and all subobjects
          @param (dev) a device memory or null
@@ -76,20 +78,21 @@ struct Convolution2D {
          if dev is not null, all dev fields become null.
     */
     void set_dev(Convolution2D<maxB,IC,H,W,K,OC>* dev){
-#if __CUDACC__
-        this->dev = dev;
-        w.set_dev(dev ? &dev->w : 0);
-        b.set_dev(dev ? &dev->b : 0);
-        y.set_dev(dev ? &dev->y : 0);
-        gw.set_dev(dev ? &dev->gw : 0);
-        gb.set_dev(dev ? &dev->gb : 0);
-        gx.set_dev(dev ? &dev->gx : 0);
-        opt_w.set_dev(dev ? &dev->opt_w : 0);
-        opt_b.set_dev(dev ? &dev->opt_b : 0);
-#else
-        (void)dev;
-#endif
+        #if __CUDACC__
+                this->dev = dev;
+                w.set_dev(dev ? &dev->w : 0);
+                b.set_dev(dev ? &dev->b : 0);
+                y.set_dev(dev ? &dev->y : 0);
+                gw.set_dev(dev ? &dev->gw : 0);
+                gb.set_dev(dev ? &dev->gb : 0);
+                gx.set_dev(dev ? &dev->gx : 0);
+                opt_w.set_dev(dev ? &dev->opt_w : 0);
+                opt_b.set_dev(dev ? &dev->opt_b : 0);
+        #else
+                (void)dev;
+        #endif
     }
+
     /**
          @brief the baseline (serial) implementation of update
 
@@ -111,6 +114,7 @@ struct Convolution2D {
         opt_w.update(w, gw);
         opt_b.update(b, gb);
     }
+
     /**
          @brief the device function of update called from the 
          global (non-member) function
@@ -123,6 +127,7 @@ struct Convolution2D {
     void update_cuda_base_device(){
         update_base();
     }
+
     /**
          @brief a cuda version of baseline code called from the 
          entry function (update)
@@ -132,13 +137,14 @@ struct Convolution2D {
          @sa update_base
     */
     void update_cuda_base(){
-#if __CUDACC__
-        assert(dev);
-        launch_and_sync((update_cuda_base_global<<<1,1>>>(dev)));
-#else
-        err_cuda_code_non_cuda_compiler(opt.algo_s);
-#endif
+        #if __CUDACC__
+                assert(dev);
+                launch_and_sync((update_cuda_base_global<<<1,1>>>(dev)));
+        #else
+                err_cuda_code_non_cuda_compiler(opt.algo_s);
+        #endif
     }
+
     /**
          @brief a cpu version of baseline code called from the 
          entry function (update)
@@ -148,6 +154,7 @@ struct Convolution2D {
     void update_cpu_base(){
         update_base();
     }
+
     /**
          @brief update weights of all sublayers with gradients
          that must have been computed
@@ -165,14 +172,14 @@ struct Convolution2D {
         switch (opt.algo){
             /* add case for your implementations here */
         case algo_cpu_base:
-            update_cpu_base(); break;
+            update_cpu_base();break;
         case algo_cuda_base:
-            update_cuda_base(); break;
+            update_cuda_base();break;
         default:
             /* fallback to base */
             if (opt.cuda_algo){
                 update_cuda_base();
-            } else {
+            }else{
                 update_cpu_base();
             }
             break;
@@ -201,18 +208,18 @@ struct Convolution2D {
     __device__ __host__ 
     void forward_base(tensor<real,maxB,IC,H,W>& x, int training){
         (void)training;
-        idx_t B = x.n0;                         // batch size
+        idx_t B = x.n0;                        // batch size
         y.set_n0(B);
-        x_ptr = &x;                                 // save pointer to input for backward
-        for (idx_t s = 0; s < B; s++){             // for each sample
-            for (idx_t oc = 0; oc < OC; oc++){ // for each output channel
-                for (idx_t i = 0; i < H - K + 1; i++){     // for each output pixel
-                    for (idx_t j = 0; j < W - K + 1; j++){ // for each output pixel
+        x_ptr = &x;                                // save pointer to input for backward
+        for(idx_t s = 0;s < B;s++){             // for each sample
+            for(idx_t oc = 0;oc < OC;oc++){ // for each output channel
+                for(idx_t i = 0;i < H - K + 1;i++){     // for each output pixel
+                    for(idx_t j = 0;j < W - K + 1;j++){ // for each output pixel
                         // calculate a single output pixel
                         real v = 0.0;
-                        for (idx_t ic = 0; ic < IC; ic++){ // input channel
-                            for (idx_t di = 0; di < K; di++){
-                                for (idx_t dj = 0; dj < K; dj++){
+                        for(idx_t ic = 0;ic < IC;ic++){ // input channel
+                            for(idx_t di = 0;di < K;di++){
+                                for(idx_t dj = 0;dj < K;dj++){
                                     v += w(oc,ic,di,dj) * x(s,ic,i+di,j+dj);
                                 }
                             }
@@ -244,28 +251,35 @@ struct Convolution2D {
     */
     __device__ __host__ 
     void forward_simd_arm(tensor<real,maxB,IC,H,W>& x, int training){
-        (void)training;
-        idx_t B = x.n0;                         // batch size
-        y.set_n0(B);
-        x_ptr = &x;                                 // save pointer to input for backward
-        for (idx_t s = 0; s < B; s++){             // for each sample
-            for (idx_t oc = 0; oc < OC; oc++){ // for each output channel
-                for (idx_t i = 0; i < H - K + 1; i++){     // for each output pixel
-                    for (idx_t j = 0; j < W - K + 1; j++){ // for each output pixel
-                        // calculate a single output pixel
-                        real v = 0.0;
-                        for (idx_t ic = 0; ic < IC; ic++){ // input channel
-                            for (idx_t di = 0; di < K; di++){
-                                for (idx_t dj = 0; dj < K; dj++){
-                                    v += w(oc,ic,di,dj) * x(s,ic,i+di,j+dj);
+        #ifdef __ARM_64BIT_STATE
+            // we will use data types and functions that are only available if we're on an ARM platform
+
+            (void)training;
+            idx_t B = x.n0;        // batch size
+            y.set_n0(B);
+            x_ptr = &x;            // save pointer to input for backward
+            for(idx_t s = 0;s < B;s++){                             // for each sample
+                for(idx_t oc = 0;oc < OC;oc++){                     // for each output channel
+                    for(idx_t i = 0;i < H - K + 1;i++){             // for each output pixel
+                        for(idx_t j = 0;j < W - K + 1;j += 2){      // for each output pixel
+                            /*
+                                We will apply simd to the loop over j (over the columns in x), meaning we compute two output pixels simultaneously.
+                                we can only use simd vectors with two lanes since the dimensions of the output are 28, 26 or 24
+                            */
+                            real v = 0.0;
+                            for(idx_t ic = 0;ic < IC;ic++){                       // input channel
+                                for(idx_t di = 0;di < K;di++){
+                                    for(idx_t dj = 0;dj < K;dj++){
+                                        v += w(oc,ic,di,dj) * x(s,ic,i+di,j+dj);
+                                    }
                                 }
                             }
+                            y(s,oc,i,j) = v + b(oc);
                         }
-                        y(s,oc,i,j) = v + b(oc);
                     }
                 }
             }
-        }
+        #endif
     }
 
     /**
@@ -282,6 +296,7 @@ struct Convolution2D {
     void forward_cuda_base_device(tensor<real,maxB,IC,H,W>& x, int training){
         forward_base(x, training);
     }
+
     /**
          @brief a cuda version of baseline code called from the 
          entry function (forward)
@@ -354,17 +369,17 @@ struct Convolution2D {
         switch (opt.algo){
             /* add case for your implementations here */
         case algo_cpu_base:
-            forward_cpu_base(x, training); break;
+            forward_cpu_base(x, training);break;
         case algo_cuda_base:
-            forward_cuda_base(x, training); break;
+            forward_cuda_base(x, training);break;
         case algo_cpu_test:
-            forward_cpu_test(x, training); break;
+            forward_cpu_test(x, training);break;
         case algo_cpu_simd_arm:
-            forward_cpu_simd_arm(x, training); break;
+            forward_cpu_simd_arm(x, training);break;
         default:
             if (opt.cuda_algo){
                 forward_cuda_base(x, training);
-            } else {
+            }else{
                 forward_cpu_base(x, training);
             }                
         }
@@ -394,14 +409,14 @@ struct Convolution2D {
         gb.set_n0(OC);
         gx.set_n0(B);
         tensor<real,maxB,IC,H,W>& x = *x_ptr;
-        for (idx_t oc = 0; oc < OC; oc++){     // output channel
-            for (idx_t ic = 0; ic < IC; ic++){ // input channel
-                for (idx_t di = 0; di < K; di++){ // kernel pixel
-                    for (idx_t dj = 0; dj < K; dj++){ // kernel pixel
+        for(idx_t oc = 0;oc < OC;oc++){     // output channel
+            for(idx_t ic = 0;ic < IC;ic++){ // input channel
+                for(idx_t di = 0;di < K;di++){ // kernel pixel
+                    for(idx_t dj = 0;dj < K;dj++){ // kernel pixel
                         real v = 0.0;
-                        for (idx_t s = 0; s < B; s++){ // training samples
-                            for (idx_t i = 0; i < H - K + 1; i++){ // sample pixel
-                                for (idx_t j = 0; j < W - K + 1; j++){ // sample pixel
+                        for(idx_t s = 0;s < B;s++){ // training samples
+                            for(idx_t i = 0;i < H - K + 1;i++){ // sample pixel
+                                for(idx_t j = 0;j < W - K + 1;j++){ // sample pixel
                                     v += gy(s,oc,i,j) * x(s,ic,i+di,j+dj);
                                 }
                             }
@@ -411,25 +426,25 @@ struct Convolution2D {
                 }
             }
         }
-        for (idx_t oc = 0; oc < OC; oc++){
+        for(idx_t oc = 0;oc < OC;oc++){
             real v = 0.0;
-            for (idx_t s = 0; s < B; s++){
-                for (idx_t i = 0; i < H - K + 1; i++){
-                    for (idx_t j = 0; j < W - K + 1; j++){
+            for(idx_t s = 0;s < B;s++){
+                for(idx_t i = 0;i < H - K + 1;i++){
+                    for(idx_t j = 0;j < W - K + 1;j++){
                         v += gy(s,oc,i,j);
                     }
                 }
             }
             gb(oc) = v;
         }
-        for (idx_t s = 0; s < B; s++){
-            for (idx_t ic = 0; ic < IC; ic++){
-                for (idx_t i = 0; i < H; i++){
-                    for (idx_t j = 0; j < W; j++){
+        for(idx_t s = 0;s < B;s++){
+            for(idx_t ic = 0;ic < IC;ic++){
+                for(idx_t i = 0;i < H;i++){
+                    for(idx_t j = 0;j < W;j++){
                         real v = 0.0;
-                        for (idx_t oc = 0; oc < OC; oc++){
-                            for (idx_t di = 0; di < K; di++){
-                                for (idx_t dj = 0; dj < K; dj++){
+                        for(idx_t oc = 0;oc < OC;oc++){
+                            for(idx_t di = 0;di < K;di++){
+                                for(idx_t dj = 0;dj < K;dj++){
                                     if (0 <= i - di && i - di < H - K + 1
                                             && 0 <= j - dj && j - dj < W - K + 1){
                                         v += gy(s,oc,i-di,j-dj) * w(oc,ic,di,dj);
@@ -505,13 +520,13 @@ struct Convolution2D {
         switch (opt.algo){
             /* add case for your implementations here */
         case algo_cpu_base:
-            backward_cpu_base(gy); break;
+            backward_cpu_base(gy);break;
         case algo_cuda_base:
-            backward_cuda_base(gy); break;
+            backward_cuda_base(gy);break;
         default:
             if (opt.cuda_algo){
                 backward_cuda_base(gy);
-            } else {
+            }else{
                 backward_cpu_base(gy);
             }                
         }
@@ -593,7 +608,7 @@ int convolution_main(int argc, char ** argv){
     double max_e = 0.0;
     double sum_e = 0.0;
     Convolution2DCfg cfg;
-    for (int iter = 0; iter < n_checks; iter++){
+    for(int iter = 0;iter < n_checks;iter++){
         printf("==== %d ====\n", iter);
         double e = grad_check<Convolution2D<maxB,IC,H,W,K,OC>,
                                                     tensor<real,maxB,IC,H,W>,

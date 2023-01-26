@@ -15,7 +15,9 @@
 #include<time.h>
 #include<unistd.h>
 #ifdef __ARM_64BIT_STATE
-    #include<arm_neon.h>        // this will probably need to be a preprocessor directive on taulec
+    #include<arm_neon.h>
+#else
+    #include<x86intrin.h>
 #endif
 
 #if 0
@@ -113,7 +115,11 @@ static algo_t parse_algo(const char * s) {
     }else if(strcmp(s, "cpu_test") == 0){
         return algo_cpu_test;
     }else if(strcmp(s, "cpu_simd_arm") == 0){
-        return algo_cpu_simd_arm;
+        #ifdef __ARM_64BIT_STATE
+            return algo_cpu_simd_arm;
+        #else
+            return algo_invalid
+        #endif
     }else if(strcmp(s, "cpu_omp") == 0){
         return algo_cpu_omp;
         /* add cases here to handle your algorithms
