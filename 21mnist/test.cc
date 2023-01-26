@@ -33,7 +33,7 @@ int main(){
 
     vec3 = vfma_f32(vec3,vec2,vec3);
 
-    for(int i=0;i<2;i++){std::cout << vec3[i] << std::endl;}
+    // for(int i=0;i<2;i++){std::cout << vec3[i] << std::endl;}
 
     return 0;
 }
