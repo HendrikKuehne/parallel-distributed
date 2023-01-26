@@ -264,17 +264,21 @@ struct Convolution2D{
                         for(idx_t j = 0;j < W - K + 1;j += 2){      // for each output pixel
                             /*
                                 We will apply simd to the loop over j (over the columns in x), meaning we compute two output pixels simultaneously.
-                                we can only use simd vectors with two lanes since the dimensions of the output are 28, 26 or 24
+                                We can only use simd vectors with two lanes since the dimensions of the output are 28, 26 or 24.
                             */
-                            real v = 0.0;
+                            float32x2_t v = vdup_n_f32(0);
                             for(idx_t ic = 0;ic < IC;ic++){                       // input channel
                                 for(idx_t di = 0;di < K;di++){
                                     for(idx_t dj = 0;dj < K;dj++){
-                                        v += w(oc,ic,di,dj) * x(s,ic,i+di,j+dj);
+                                        v = vfma_f32(v,x.V(s,ic,i+di,j+dj),vdup_n_f32(w(oc,ic,di,dj)));
+                                            // vfma_f32(a,b,c) = a + b * c
+                                        // v += w(oc,ic,di,dj) * x(s,ic,i+di,j+dj);
                                     }
                                 }
                             }
-                            y(s,oc,i,j) = v + b(oc);
+                            v = vadd_f32(v,vdup_n_f32(b(oc)));
+                            y.V(s,oc,i,j) = v;
+                            // y(s,oc,i,j) = v + b(oc);
                         }
                     }
                 }
