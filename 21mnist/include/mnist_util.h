@@ -3,17 +3,18 @@
    @brief MNIST utility functions/classes
  */
 #pragma once
-#include <assert.h>
-#include <getopt.h>
-#include <limits.h>
-#include <math.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <stdarg.h>
-#include <stdint.h>
-#include <time.h>
-#include <unistd.h>
+#include<assert.h>
+#include<getopt.h>
+#include<limits.h>
+#include<math.h>
+#include<stdio.h>
+#include<stdlib.h>
+#include<string.h>
+#include<stdarg.h>
+#include<stdint.h>
+#include<time.h>
+#include<unistd.h>
+#include<arm_neon.h>        // this will probably need to be a preprocessor directive on taulec
 #if 0
 #include <ieee754.h>
 #endif
