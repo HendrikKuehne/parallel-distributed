@@ -258,28 +258,44 @@ struct Convolution2D{
             idx_t B = x.n0;        // batch size
             y.set_n0(B);
             x_ptr = &x;            // save pointer to input for backward
-            float32x2_t v;
+
+            float32x4_t vec;
+            real v;
+
             for(idx_t s = 0;s < B;s++){                             // for each sample
                 for(idx_t oc = 0;oc < OC;oc++){                     // for each output channel
                     for(idx_t i = 0;i < H - K + 1;i++){             // for each output pixel
-                        for(idx_t j = 0;j < W - K + 1;j += 2){      // for each output pixel
+                        idx_t j = 0;
+                        for(;j < W - K + 1;j += 4){                 // for each output pixel
                             /*
                                 We will apply simd to the loop over j (over the columns in x), meaning we compute two output pixels simultaneously.
-                                We can only use simd vectors with two lanes since the dimensions of the output are 28, 26 or 24.
+                                The vectors will contain four lanes and we'll deal with the remainder iterations explicitly.
                             */
-                            v = vdup_n_f32(0);
+                            vec = vdupq_n_f32(0);
                             for(idx_t ic = 0;ic < IC;ic++){                       // input channel
                                 for(idx_t di = 0;di < K;di++){
                                     for(idx_t dj = 0;dj < K;dj++){
-                                        v = vfma_f32(v,x.V(s,ic,i+di,j+dj),vdup_n_f32(w(oc,ic,di,dj)));
-                                            // vfma_f32(a,b,c) = a + b * c
+                                        vec = vfmaq_f32(vec,x.V4(s,ic,i+di,j+dj),vdupq_n_f32(w(oc,ic,di,dj)));
+                                            // vfma(a,b,c) = a + b * c
                                         // v += w(oc,ic,di,dj) * x(s,ic,i+di,j+dj);
                                     }
                                 }
                             }
-                            v = vadd_f32(v,vdup_n_f32(b(oc)));
-                            y.V(s,oc,i,j) = v;
+                            vec = vaddq_f32(vec,vdupq_n_f32(b(oc)));
+                            y.V4(s,oc,i,j) = vec;
                             // y(s,oc,i,j) = v + b(oc);
+                        }
+                        for(;j < W - K + 1;j++){      // remainder iterations - this the code from forward_cpu_base
+                            // calculate a single output pixel
+                            v = 0.0;
+                            for(idx_t ic = 0;ic < IC;ic++){ // input channel
+                                for(idx_t di = 0;di < K;di++){
+                                    for(idx_t dj = 0;dj < K;dj++){
+                                        v += w(oc,ic,di,dj) * x(s,ic,i+di,j+dj);
+                                    }
+                                }
+                            }
+                            y(s,oc,i,j) = v + b(oc);
                         }
                     }
                 }

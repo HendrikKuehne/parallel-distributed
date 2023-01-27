@@ -241,6 +241,7 @@ struct Linear {
             (void)training;
             const idx_t m = x.n0;
             y.set_n0(m);
+            x_ptr = &x;
 
             // since we need the modified elements to be in the last dimension of y, we will define a temporary y in
             // which we store the results and a new b in which the biases are in the last dimension
@@ -250,27 +251,40 @@ struct Linear {
             b_tmp.init_const(1,0);
             for(int i=0;i<N;i++){b_tmp(0,0,0,i) = b(i);}
 
-            x_ptr = &x;
-            float32x2_t v;
-            for(idx_t i = 0; i < m; i++){
-                for(idx_t j = 0; j < N; j+=2){
+            float32x4_t vec;
+            real v;
+
+            for(idx_t i = 0;i < m;i++){
+                idx_t j = 0;
+                for(;j < N;j+=4){
                     /**
                      We will parallelize the loop over j since we only have access to vectors taken from the last dimension of a tensor.
-                     Since N is either 128 or 10, we will again use vectors of length 2.
+                     We'll use vectors with four lanes.
                     */
-                    v = vdup_n_f32(0);
+                    vec = vdupq_n_f32(0);
                     for(idx_t k0 = 0; k0 < K0; k0++){
                         for(idx_t k1 = 0; k1 < K1; k1++){
                             for(idx_t k2 = 0; k2 < K2; k2++){
                                 // v += x(i,k0,k1,k2) * w(k0,k1,k2,j);
-                                v = vfma_f32(v,w.V(k0,k1,k2,j),vdup_n_f32(x(i,k0,k1,k2)));
-                                    // vfma_f32(a,b,c) = a + b * c
+                                vec = vfmaq_f32(vec,w.V4(k0,k1,k2,j),vdupq_n_f32(x(i,k0,k1,k2)));
+                                    // vfma(a,b,c) = a + b * c
                             }
                         }
                     }
-                    v = vadd_f32(v,b_tmp.V(0,0,0,j));
-                    y_tmp.V(0,0,i,j) = v;
+                    vec = vaddq_f32(vec,b_tmp.V4(0,0,0,j));
+                    y_tmp.V4(0,0,i,j) = vec;
                     // y(i,j) = v + b(j);
+                }
+                for(;j < N;j++){           // remainder iteratins - this is just the code from forward_cpu_base
+                    v = 0;
+                    for(idx_t k0 = 0; k0 < K0; k0++){
+                        for(idx_t k1 = 0; k1 < K1; k1++){
+                            for(idx_t k2 = 0; k2 < K2; k2++){
+                                v += x(i,k0,k1,k2) * w(k0,k1,k2,j);
+                            }
+                        }
+                    }
+                    y(i,j) = v + b(j);
                 }
             }
 

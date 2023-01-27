@@ -16,7 +16,23 @@
  @brief Used in returning a write-safe simd vector from a tensor
  */
 template<typename T>
-static float32x2_t& V(T& address){return *((float32x2_t*)address);}
+static float32x2_t& V2(T& address){return *((float32x2_t*)address);}
+#endif
+
+#ifdef __ARM_64BIT_STATE
+/**
+ @brief Used in returning a write-safe simd vector from a tensor
+ */
+template<typename T>
+static float32x4_t& V4(T& address){return *((float32x4_t*)address);}
+#endif
+
+#ifdef __ARM_64BIT_STATE
+/**
+ @brief Used in returning a write-safe simd vector from a tensor
+ */
+template<typename T>
+static float16x8_t& V8(T& address){return *((float16x8_t*)address);}
 #endif
 
 /**
@@ -411,7 +427,7 @@ struct tensor{
         @param i0,i1,i2,i3 indices
         @return A vector containing x[i0][i1][i2][i3:i3+2]
      */
-    float32x2_t& V(idx_t i0,idx_t i1,idx_t i2,idx_t i3){
+    float32x2_t& V2(idx_t i0,idx_t i1,idx_t i2,idx_t i3){
         range_chk(0,i0,n0);
         range_chk(0,i1,N1);
         range_chk(0,i2,N2);
@@ -420,7 +436,45 @@ struct tensor{
         tensor<T,N0,N1,N2,N3>& a = *this;
         T* address = &(a(i0,i1,i2,i3));
 
-        return ::V(address);
+        return ::V2(address);
+    }
+    #endif
+
+    #ifdef __ARM_64BIT_STATE
+    /**
+        @brief return a simd vector over the last dimension of the tensor x at location i0,i1,i2,i3. tensor::V is write-safe!
+        @param i0,i1,i2,i3 indices
+        @return A vector containing x[i0][i1][i2][i3:i3+2]
+     */
+    float32x4_t& V4(idx_t i0,idx_t i1,idx_t i2,idx_t i3){
+        range_chk(0,i0,n0);
+        range_chk(0,i1,N1);
+        range_chk(0,i2,N2);
+        range_chk(0,i3+7,N3);
+
+        tensor<T,N0,N1,N2,N3>& a = *this;
+        T* address = &(a(i0,i1,i2,i3));
+
+        return ::V4(address);
+    }
+    #endif
+
+    #ifdef __ARM_64BIT_STATE
+    /**
+        @brief return a simd vector over the last dimension of the tensor x at location i0,i1,i2,i3. tensor::V is write-safe!
+        @param i0,i1,i2,i3 indices
+        @return A vector containing x[i0][i1][i2][i3:i3+2]
+     */
+    float16x8_t& V8(idx_t i0,idx_t i1,idx_t i2,idx_t i3){
+        range_chk(0,i0,n0);
+        range_chk(0,i1,N1);
+        range_chk(0,i2,N2);
+        range_chk(0,i3+7,N3);
+
+        tensor<T,N0,N1,N2,N3>& a = *this;
+        T* address = &(a(i0,i1,i2,i3));
+
+        return ::V8(address);
     }
     #endif
 
