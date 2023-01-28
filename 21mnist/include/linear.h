@@ -29,9 +29,9 @@ struct LinearCfg { };
      outputs a M x N matrix. essentially it is a matrix multiply y = x * w
  */
 template<idx_t M,idx_t N,idx_t K0,idx_t K1=1,idx_t K2=1>
-struct Linear {
+struct Linear{
     #if __CUDACC__
-        Linear<M,N,K0,K1,K2>* dev;            /**< device shadow */
+        Linear<M,N,K0,K1,K2>* dev;           /**< device shadow */
     #endif
 
     cmdline_opt opt;                    /**< command line option */
@@ -166,9 +166,9 @@ struct Linear {
         switch (opt.algo){
             /* add case for your implementations here */
         case algo_cpu_base:
-            update_cpu_base(); break;
+            update_cpu_base();break;
         case algo_cuda_base:
-            update_cuda_base(); break;
+            update_cuda_base();break;
         default:
             if (opt.cuda_algo){
                 update_cuda_base();
@@ -203,12 +203,12 @@ struct Linear {
         const idx_t m = x.n0;
         y.set_n0(m);
         x_ptr = &x;
-        for(idx_t i = 0; i < m; i++){
-            for(idx_t j = 0; j < N; j++){
+        for(idx_t i = 0;i < m;i++){
+            for(idx_t j = 0;j < N;j++){
                 real v = 0.0;
-                for(idx_t k0 = 0; k0 < K0; k0++){
-                    for(idx_t k1 = 0; k1 < K1; k1++){
-                        for(idx_t k2 = 0; k2 < K2; k2++){
+                for(idx_t k0 = 0;k0 < K0;k0++){
+                    for(idx_t k1 = 0;k1 < K1;k1++){
+                        for(idx_t k2 = 0;k2 < K2;k2++){
                             v += x(i,k0,k1,k2) * w(k0,k1,k2,j);
                         }
                     }
@@ -256,15 +256,15 @@ struct Linear {
 
             for(idx_t i = 0;i < m;i++){
                 idx_t j = 0;
-                for(;j < N;j+=4){
+                for(;j+4 < N;j+=4){
                     /**
                      We will parallelize the loop over j since we only have access to vectors taken from the last dimension of a tensor.
                      We'll use vectors with four lanes.
                     */
                     vec = vdupq_n_f32(0);
-                    for(idx_t k0 = 0; k0 < K0; k0++){
-                        for(idx_t k1 = 0; k1 < K1; k1++){
-                            for(idx_t k2 = 0; k2 < K2; k2++){
+                    for(idx_t k0 = 0;k0 < K0;k0++){
+                        for(idx_t k1 = 0;k1 < K1;k1++){
+                            for(idx_t k2 = 0;k2 < K2;k2++){
                                 // v += x(i,k0,k1,k2) * w(k0,k1,k2,j);
                                 vec = vfmaq_f32(vec,w.V4(k0,k1,k2,j),vdupq_n_f32(x(i,k0,k1,k2)));
                                     // vfma(a,b,c) = a + b * c
@@ -275,22 +275,22 @@ struct Linear {
                     y_tmp.V4(0,0,i,j) = vec;
                     // y(i,j) = v + b(j);
                 }
-                for(;j < N;j++){           // remainder iteratins - this is just the code from forward_cpu_base
+                for(;j < N;j++){           // remainder iterations - this is just the code from forward_cpu_base
                     v = 0;
-                    for(idx_t k0 = 0; k0 < K0; k0++){
-                        for(idx_t k1 = 0; k1 < K1; k1++){
-                            for(idx_t k2 = 0; k2 < K2; k2++){
+                    for(idx_t k0 = 0;k0 < K0;k0++){
+                        for(idx_t k1 = 0;k1 < K1;k1++){
+                            for(idx_t k2 = 0;k2 < K2;k2++){
                                 v += x(i,k0,k1,k2) * w(k0,k1,k2,j);
                             }
                         }
                     }
-                    y(i,j) = v + b(j);
+                    y_tmp(0,0,i,j) = v + b(j);
                 }
             }
 
             // writing the results to y
-            for(idx_t i = 0; i < m; i++){
-                for(idx_t j = 0; j < N; j++){
+            for(idx_t i = 0;i < m;i++){
+                for(idx_t j = 0;j < N;j++){
                     y(i,j) = y_tmp(0,0,i,j);
                 }
             }
@@ -374,11 +374,11 @@ struct Linear {
         switch (opt.algo){
             /* add case for your implementations here */
         case algo_cpu_base:
-            forward_cpu_base(x, training); break;
+            forward_cpu_base(x, training);break;
         case algo_cuda_base:
-            forward_cuda_base(x, training); break;
+            forward_cuda_base(x, training);break;
         case algo_cpu_simd_arm:
-            forward_cpu_simd_arm(x, training); break;
+            forward_cpu_simd_arm(x, training);break;
         default:
             if (opt.cuda_algo){
                 forward_cuda_base(x, training);
@@ -390,20 +390,21 @@ struct Linear {
         log_end_fun(lgr, t0, t1);
         return y;
     }
+
     /**
-         @brief the baseline (serial) implementation of backward
-         @param (gy) gradient of loss with respect to the output
-         @details called both by cpu implementation (backward_cpu_base)
-         and cuda implementation (backward_cuda_base). the call sequence
-         backward -> backward_cpu_base -> backward_base on cpu and and is
-         backward -> backward_cuda_base -> backward_cuda_base_global ->
-         backward_cuda_base_device -> backward_base
-         @sa backward
-         @sa backward_cpu_base
-         @sa backward_cuda_base
-         @sa backward_cuda_base_global
-         @sa backward_cuda_base_device
-         @sa backward_base
+     @brief the baseline (serial) implementation of backward
+     @param (gy) gradient of loss with respect to the output
+     @details called both by cpu implementation (backward_cpu_base)
+     and cuda implementation (backward_cuda_base). the call sequences are
+     backward -> backward_cpu_base -> backward_base on cpu and
+     backward -> backward_cuda_base -> backward_cuda_base_global ->
+     backward_cuda_base_device -> backward_base
+     @sa backward
+     @sa backward_cpu_base
+     @sa backward_cuda_base
+     @sa backward_cuda_base_global
+     @sa backward_cuda_base_device
+     @sa backward_base
     */
     __device__ __host__
     void backward_base(tensor<real,M,N>& gy){
@@ -412,12 +413,12 @@ struct Linear {
         gb.set_n0(N);
         gx.set_n0(m);
         tensor<real,M,K0,K1,K2>& x = *x_ptr;
-        for(idx_t k0 = 0; k0 < K0; k0++){
-            for(idx_t k1 = 0; k1 < K1; k1++){
-                for(idx_t k2 = 0; k2 < K2; k2++){
-                    for(idx_t j = 0; j < N; j++){
+        for(idx_t k0 = 0;k0 < K0;k0++){
+            for(idx_t k1 = 0;k1 < K1;k1++){
+                for(idx_t k2 = 0;k2 < K2;k2++){
+                    for(idx_t j = 0;j < N;j++){
                         real v = 0.0;
-                        for(idx_t i = 0; i < m; i++){
+                        for(idx_t i = 0;i < m;i++){
                             v += gy(i,j) * x(i,k0,k1,k2);
                         }
                         gw(k0,k1,k2,j) = v;
@@ -425,19 +426,19 @@ struct Linear {
                 }
             }
         }
-        for(idx_t j = 0; j < N; j++){
+        for(idx_t j = 0;j < N;j++){
             real v = 0.0;
-            for(idx_t i = 0; i < m; i++){
+            for(idx_t i = 0;i < m;i++){
                 v += gy(i, j);
             }
             gb(j) = v;
         }
-        for(idx_t i = 0; i < m; i++){
-            for(idx_t k0 = 0; k0 < K0; k0++){
-                for(idx_t k1 = 0; k1 < K1; k1++){
-                    for(idx_t k2 = 0; k2 < K2; k2++){
+        for(idx_t i = 0;i < m;i++){
+            for(idx_t k0 = 0;k0 < K0;k0++){
+                for(idx_t k1 = 0;k1 < K1;k1++){
+                    for(idx_t k2 = 0;k2 < K2;k2++){
                         real v = 0.0;
-                        for(idx_t j = 0; j < N; j++){
+                        for(idx_t j = 0;j < N;j++){
                             v += gy(i,j) * w(k0,k1,k2,j);
                         }
                         gx(i,k0,k1,k2) = v;
@@ -446,61 +447,176 @@ struct Linear {
             }
         }
     }
+
     /**
-         @brief the device function of backward called from the 
-         global (non-member) function
-         @param (gy) gradient of loss with respect to the output
-         @sa backward
-         @sa backward_cuda_base
-         @sa backward_cuda_base_global
-         @sa backward_base
+     @brief An arm simd implementation of backward
+     @param (gy) gradient of loss with respect to the output
+     @details called both by cpu implementation (backward_cpu_base)
+     and cuda implementation (backward_cuda_base). the call sequences are
+     backward -> backward_cpu_base -> backward_base on cpu and
+     backward -> backward_cuda_base -> backward_cuda_base_global ->
+     backward_cuda_base_device -> backward_base
+     @sa backward
+     @sa backward_cpu_base
+     @sa backward_cuda_base
+     @sa backward_cuda_base_global
+     @sa backward_cuda_base_device
+     @sa backward_base
+    */
+    __device__ __host__
+    void backward_simd_arm(tensor<real,M,N>& gy){
+        #ifdef __ARM_64BIT_STATE
+            const idx_t m = gy.n0;
+            gw.set_n0(K0);
+            gb.set_n0(N);
+            gx.set_n0(m);
+
+            /**
+             Since we can only turn contiguous values into vectors, i.e. the last dimension of a tensor, we
+             will shift the indices of gy two times such that N is the size of the last dimension of gy
+            */
+            tensor<real,1,1,M,N> gy_tmp = gy.index_shift().index_shift();
+
+            real v = 0;
+            float32x4_t vec;
+
+            tensor<real,M,K0,K1,K2>& x = *x_ptr;
+
+            for(idx_t k0 = 0;k0 < K0;k0++){
+                for(idx_t k1 = 0;k1 < K1;k1++){
+                    for(idx_t k2 = 0;k2 < K2;k2++){
+                        idx_t j = 0;
+                        for(;j + 4 < N;j+=4){
+                            vec = vdupq_n_f32(0);
+                            for(idx_t i = 0;i < m;i++){
+                                vec = vfmaq_f32(vec,gy_tmp.V4(0,0,i,j),vdupq_n_f32(x(i,k0,k1,k2)));
+                                    // vfma(a,b,c) = a + b * c
+                                // v += gy(i,j) * x(i,k0,k1,k2);
+                            }
+                            gw.V4(k0,k1,k2,j) = vec;
+                        }
+                        for(;j < N;j++){        // remainder iterations
+                            v = 0;
+                            for(idx_t i = 0;i < m;i++){
+                                v += gy(i,j) * x(i,k0,k1,k2);
+                            }
+                            gw(k0,k1,k2,j) = v;
+                        }
+                    }
+                }
+            }
+
+            tensor<real,1,1,1,N> gb_tmp; gb_tmp.init_const(1,0);
+            idx_t j = 0;
+            for(;j + 4 < N;j+=4){
+                vec = vdupq_n_f32(0);
+                for(idx_t i = 0;i < m;i++){
+                    vec = vaddq_f32(vec,gy_tmp.V4(0,0,i,j));
+                    // v += gy(i, j);
+                }
+                gb_tmp.V4(0,0,0,j) = vec;
+            }
+            for(;j < N;j++){                // remainder iterations
+                v = 0;
+                for(idx_t i = 0;i < m;i++){
+                    v += gy(i, j);
+                }
+                gb_tmp(0,0,0,j) = v;
+            }
+            for(idx_t j=0;j<N;j++){gb(j) = gb_tmp(0,0,0,j);}
+
+            for(idx_t i = 0;i < m;i++){
+                for(idx_t k0 = 0;k0 < K0;k0++){
+                    for(idx_t k1 = 0;k1 < K1;k1++){
+                        for(idx_t k2 = 0;k2 < K2;k2++){
+                            idx_t j = 0;
+                            v = 0;
+                            vec = vdupq_n_f32(0);
+                            for(;j + 4 < N;j+=4){
+                                vec = vfmaq_f32(vec,gy_tmp.V4(0,0,i,j),w.V4(k0,k1,k2,j));
+                                    // vfma(a,b,c) = a + b * c
+                                // v += gy(i,j) * w(k0,k1,k2,j);
+                            }
+                            for(;j < N;j++){                    // remainder iterations
+                                v += gy(i,j) * w(k0,k1,k2,j);
+                            }
+                            gx(i,k0,k1,k2) = v + vaddvq_f32(vec);
+                        }
+                    }
+                }
+            }
+        #endif
+    }
+
+    /**
+     @brief the device function of backward called from the 
+     global (non-member) function
+     @param (gy) gradient of loss with respect to the output
+     @sa backward
+     @sa backward_cuda_base
+     @sa backward_cuda_base_global
+     @sa backward_base
     */
     __device__
     void backward_cuda_base_device(tensor<real,M,N>& gy){
         backward_base(gy);
     }
+
     /**
-         @brief a cuda version of baseline code called from the 
-         entry function (backward)
-         @param (gy) gradient of loss with respect to the output
-         @sa backward
-         @sa backward_cuda_base_global
-         @sa backward_cuda_base_device
-         @sa backward_base
+     @brief a cuda version of baseline code called from the 
+     entry function (backward)
+     @param (gy) gradient of loss with respect to the output
+     @sa backward
+     @sa backward_cuda_base_global
+     @sa backward_cuda_base_device
+     @sa backward_base
     */
     void backward_cuda_base(tensor<real,M,N>& gy){
-#if __CUDACC__
-        launch_and_sync((backward_cuda_base_global<<<1,1>>>(dev, gy.dev)));
-#else
-        (void)gy;
-        err_cuda_code_non_cuda_compiler(opt.algo_s);
-#endif
+        #if __CUDACC__
+            launch_and_sync((backward_cuda_base_global<<<1,1>>>(dev, gy.dev)));
+        #else
+            (void)gy;
+            err_cuda_code_non_cuda_compiler(opt.algo_s);
+        #endif
     }
+
     /**
-         @brief a cpu version of baseline code called from the 
-         entry function (backward)
-         @param (gy) gradient of loss with respect to the output
-         @sa backward
-         @sa backward_base
+     @brief a cpu version of baseline code called from the 
+     entry function (backward)
+     @param (gy) gradient of loss with respect to the output
+     @sa backward
+     @sa backward_base
     */
     void backward_cpu_base(tensor<real,M,N>& gy){
         backward_base(gy);
     }
+
     /**
-         @brief calc the gradient of loss wrt the input (x)
-         @param (gy) gradient of loss with respect to the output
-         @details calc the gradient of loss wrt the input. along the way,
-         it also calculates the gradient of loss wrt weights for
-         all sublayers that have weights. since this is the entire
-         network, gy is actually a vector whose components are all 1.
-         (loss = sum of losses of each data).
-         @sa backward_cpu_base
-         @sa backward_cuda_base
-         @sa backward_cuda_base_global
-         @sa backward_cuda_base_device
-         @sa backward_base
-         @sa forward
-         @sa update
+     @brief an arm simd version of baseline code called from the 
+     entry function (backward)
+     @param (gy) gradient of loss with respect to the output
+     @sa backward
+     @sa backward_base
+    */
+    void backward_cpu_simd_arm(tensor<real,M,N>& gy){
+        backward_simd_arm(gy);
+    }
+
+    /**
+     @brief calc the gradient of loss wrt the input (x)
+     @param (gy) gradient of loss with respect to the output
+     @details calc the gradient of loss wrt the input. along the way,
+     it also calculates the gradient of loss wrt weights for
+     all sublayers that have weights. since this is the entire
+     network, gy is actually a vector whose components are all 1.
+     (loss = sum of losses of each data).
+     @sa backward_cpu_base
+     @sa backward_cuda_base
+     @sa backward_cuda_base_global
+     @sa backward_cuda_base_device
+     @sa backward_base
+     @sa forward
+     @sa update
     */
     tensor<real,M,K0,K1,K2>& backward(tensor<real,M,N>& gy){
         log_start_fun(lgr);
@@ -508,9 +624,11 @@ struct Linear {
         switch (opt.algo){
             /* add case for your implementations here */
         case algo_cpu_base:
-            backward_cpu_base(gy); break;
+            backward_cpu_base(gy);break;
         case algo_cuda_base:
-            backward_cuda_base(gy); break;
+            backward_cuda_base(gy);break;
+        case algo_cpu_simd_arm:
+            backward_cpu_simd_arm(gy);break;
         default:
             if (opt.cuda_algo){
                 backward_cuda_base(gy);
@@ -522,38 +640,42 @@ struct Linear {
         log_end_fun(lgr, t0, t1);
         return gx;
     }
+
     /**
-         @brief randomly set all gradients to values between p and q
-         @param (rg) random number generator
-         @param (p) minimum value of a component
-         @param (q) maximum value of a component
-         @details only used for checking gradient computation
+     @brief randomly set all gradients to values between p and q
+     @param (rg) random number generator
+     @param (p) minimum value of a component
+     @param (q) maximum value of a component
+     @details only used for checking gradient computation
     */
     void rand_grad(rnd_gen_t& rg, real p, real q){
         gw.init_uniform(K0, rg, p, q);
         gb.init_uniform(N, rg, p, q);
     }
+
     /**
-         @brief set all gradients to gradients of another object o
-         @param (o) the object from which gradients get copied
-         @details only used for checking gradient computation
+     @brief set all gradients to gradients of another object o
+     @param (o) the object from which gradients get copied
+     @details only used for checking gradient computation
     */
     void copy_grad(Linear<M,N,K0,K1,K2>& o){
         gw = o.gw;
         gb = o.gb;
     }
+
     /**
-         @brief w += alpha * gw
-         @param (alpha) alpha of w += alpha * gw
+     @brief w += alpha * gw
+     @param (alpha) alpha of w += alpha * gw
     */
     void add_grad(real alpha){
         w.add_(alpha, gw);
         b.add_(alpha, gb);
     }
+
     /**
-         @brief take the inner product of gradients
-         @param (o) the object to take the inner product with
-         @details take the inner product of this object's gradient and b's
+     @brief take the inner product of gradients
+     @param (o) the object to take the inner product with
+     @details take the inner product of this object's gradient and b's
          gradient. only used for checking gradient computation
     */
     double grad_dot_grad(Linear<M,N,K0,K1,K2>& o){
@@ -562,16 +684,16 @@ struct Linear {
 };
 
 /**
-     @brief entry point of this header file
-     @param (argc) the number of command line args
-     @param (argv) command line args
-     @sa grad_check
-     @details if this header file is included from
-     a main C++ file and define linear_main to be main
-     (e.g., with -Dlinear_main=main), then this
-     function becomes th main function of the executable.
-     it calls grad_check repeatedly to test
-     the implementation of backward of linear.
+ @brief entry point of this header file
+ @param (argc) the number of command line args
+ @param (argv) command line args
+ @sa grad_check
+ @details if this header file is included from
+ a main C++ file and define linear_main to be main
+ (e.g., with -Dlinear_main=main), then this
+ function becomes th main function of the executable.
+ it calls grad_check repeatedly to test
+ the implementation of backward of linear.
 */
 int linear_main(int argc, char ** argv){
     cmdline_opt opt = parse_args(argc, argv);
@@ -590,7 +712,7 @@ int linear_main(int argc, char ** argv){
     double max_e = 0.0;
     double sum_e = 0.0;
     LinearCfg cfg;
-    for(int iter = 0; iter < n_checks; iter++){
+    for(int iter = 0;iter < n_checks;iter++){
         printf("==== %d ====\n", iter);
         real e = grad_check<Linear<maxB,N,K>,
                                                 tensor<real,maxB,K>,

@@ -17,17 +17,13 @@
  */
 template<typename T>
 static float32x2_t& V2(T& address){return *((float32x2_t*)address);}
-#endif
 
-#ifdef __ARM_64BIT_STATE
 /**
  @brief Used in returning a write-safe simd vector from a tensor
  */
 template<typename T>
 static float32x4_t& V4(T& address){return *((float32x4_t*)address);}
-#endif
 
-#ifdef __ARM_64BIT_STATE
 /**
  @brief Used in returning a write-safe simd vector from a tensor
  */
@@ -81,9 +77,9 @@ static void range_chk_(idx_t a, idx_t x, idx_t b,const char * a_str, const char 
     #define range_chk(a, x, b) range_chk_(a, x, b, #a, #x, #b, __FILE__, __LINE__)
 #else
     /** 
-            @brief array bounds check. turn off (on) if -DARRAY_INDEX_CHECK=0 (1) is given.
-            turn it on when you are debugging your code.
-            turn it off when you are measuring the performance.
+     @brief array bounds check. turn off (on) if -DARRAY_INDEX_CHECK=0 (1) is given.
+     turn it on when you are debugging your code.
+     turn it off when you are measuring the performance.
     */
     #define range_chk(a, x, b) 
 #endif
@@ -107,12 +103,13 @@ struct tensor{
     #endif
     idx_t n0;                           /**< actual number of elements across the first dimension */
     T w[N0][N1][N2][N3];                /**< elements */
+    
     /**
-         @brief access the (b,c,i,j) element
-         @param (b) the first index (image index in a mini batch)
-         @param (c) the second index (channe index in an image)
-         @param (i) the third index (row index in a channel)
-         @param (j) the fourth index (column index in a row)
+     @brief access the (b,c,i,j) element
+     @param (b) the first index (image index in a mini batch)
+     @param (c) the second index (channe index in an image)
+     @param (i) the third index (row index in a channel)
+     @param (j) the fourth index (column index in a row)
     */
     __device__ __host__ 
     T& operator()(idx_t i0, idx_t i1=0, idx_t i2=0, idx_t i3=0){
@@ -124,8 +121,8 @@ struct tensor{
     }
 
     /**
-         @brief set the number of elements along the first dimension
-         @param (N) the number of elements specified
+     @brief set the number of elements along the first dimension
+     @param (N) the number of elements specified
     */
     __device__ __host__ 
     void set_n0(idx_t n0){
@@ -134,9 +131,9 @@ struct tensor{
     }
 
     /**
-         @brief initialize elements of the array to a single constant value
-         @param (B) the number of rows to initialize
-         @param (x) the value of each element
+     @brief initialize elements of the array to a single constant value
+     @param (B) the number of rows to initialize
+     @param (x) the value of each element
     */
     void init_const(idx_t n0, T x){
         set_n0(n0);
@@ -155,11 +152,11 @@ struct tensor{
     }
 
      /**
-         @brief randomly initialize elements of the array    uniformly between p and q
-         @param (B) the number of rows to initialize
-         @param (rg) random number generator
-         @param (p) the minimum value
-         @param (q) the maximum value
+     @brief randomly initialize elements of the array    uniformly between p and q
+     @param (B) the number of rows to initialize
+     @param (rg) random number generator
+     @param (p) the minimum value
+     @param (q) the maximum value
     */
     void init_uniform(idx_t n0, rnd_gen_t& rg, T p, T q){
         set_n0(n0);
@@ -174,12 +171,13 @@ struct tensor{
             }
         }
     }
+
     /**
-         @brief randomly initialize elements of the array    uniformly between p and q
-         @param (B) the number of rows to initialize
-         @param (rg) random number generator
-         @param (p) the minimum value
-         @param (q) the maximum value
+     @brief randomly initialize elements of the array    uniformly between p and q
+     @param (B) the number of rows to initialize
+     @param (rg) random number generator
+     @param (p) the minimum value
+     @param (q) the maximum value
     */
     void init_uniform_i(idx_t n0, rnd_gen_t& rg, T p, T q){
         set_n0(n0);
@@ -194,12 +192,13 @@ struct tensor{
             }
         }
     }
+
     /**
-         @brief initialize the array with a normal distribution
-         @param (B) the number of rows to initialize
-         @param (rg) random number generator
-         @param (mu) mean of the normal distribution
-         @param (sigma) sigma (standard deviation) of the normal distribution
+     @brief initialize the array with a normal distribution
+     @param (B) the number of rows to initialize
+     @param (rg) random number generator
+     @param (mu) mean of the normal distribution
+     @param (sigma) sigma (standard deviation) of the normal distribution
     */
     void init_normal(idx_t n0, rnd_gen_t& rg, real mu, real sigma){
         set_n0(n0);
@@ -214,8 +213,9 @@ struct tensor{
             }
         }
     }
+
     /**
-         @brief in-place update a += alpha * b;
+     @brief in-place update a += alpha * b;
      */
     __device__ __host__
     tensor<T,N0,N1,N2,N3>& add_(T alpha, tensor<T,N0,N1,N2,N3>& b){
@@ -232,8 +232,9 @@ struct tensor{
         }
         return a;
     }
+
     /**
-         @brief in-place update a *= alpha
+     @brief in-place update a *= alpha
      */
     __device__ __host__
     tensor<T,N0,N1,N2,N3>& mul_(T alpha){
@@ -252,7 +253,7 @@ struct tensor{
     }
 
     /**
-         @brief in-place update a *= alpha
+     @brief in-place update a *= alpha
      */
     __device__ __host__
     tensor<T,N0,N1,N2,N3>& mul_(tensor<T,N0,N1,N2,N3>& b){
@@ -271,7 +272,7 @@ struct tensor{
     }
 
     /**
-         @brief in-place update a /= b;
+     @brief in-place update a /= b;
      */
     __device__ __host__
     tensor<T,N0,N1,N2,N3>& div_(tensor<T,N0,N1,N2,N3>& b){
@@ -290,7 +291,7 @@ struct tensor{
     }
 
     /**
-         @brief in-place update a = sqrt(a);
+     @brief in-place update a = sqrt(a);
      */
     __device__ __host__
     tensor<T,N0,N1,N2,N3>& sqrt_(){
@@ -309,7 +310,7 @@ struct tensor{
     }
 
     /**
-         @brief in-place update a += alpha * b * c;
+     @brief in-place update a += alpha * b * c;
      */
     __device__ __host__
     tensor<T,N0,N1,N2,N3>& addcmul_(T alpha, tensor<T,N0,N1,N2,N3>& b, tensor<T,N0,N1,N2,N3>& c){
@@ -329,7 +330,7 @@ struct tensor{
     }
 
     /**
-         @brief b = a + alpha
+     @brief b = a + alpha
      */
     __device__ __host__
     tensor<T,N0,N1,N2,N3>& add(T alpha, tensor<T,N0,N1,N2,N3>& b){
@@ -348,8 +349,8 @@ struct tensor{
     }
 
     /**
-         @brief dot product with another array
-         @param (a_) the array to take a dot product with
+     @brief dot product with another array
+     @param (a_) the array to take a dot product with
     */
     real sum(){
         tensor<T,N0,N1,N2,N3>& a = *this;
@@ -373,8 +374,8 @@ struct tensor{
     }
 
     /**
-         @brief dot product with another array
-         @param (a_) the array to take a dot product with
+     @brief dot product with another array
+     @param (a_) the array to take a dot product with
     */
     double dot(tensor<T,N0,N1,N2,N3>& b){
         tensor<T,N0,N1,N2,N3>& a = *this;
@@ -398,9 +399,6 @@ struct tensor{
         return s0;
     }
 
-    /**
-         
-     */
     void print(){
         tensor<T,N0,N1,N2,N3>& a = *this;
         assert(a.n0 > 0);
@@ -417,15 +415,38 @@ struct tensor{
     }
 
     /**
-     Prints the dimensions n0,N1,N2,N3 of the tensor.
+     @brief Prints the dimensions n0,N1,N2,N3 of the tensor.
     */
     void print_dimensions(){std::cout << "n0 = " << n0 << " | N1 = " << N1 << " | N2 = " << N2 << " | N3 = " << N3 << std::endl;}
 
+    /**
+     @brief Prints the tensor according to the way the values are laid out in memory.
+    */
+    void print_memory(){
+        //tensor<T,N0,N1,N2,N3>& a = *this;
+        for(int i=0;i<n0*N1*N2*N3;i++){std::cout << *(***w + i) << " ";} std::cout << std::endl;
+    }
+
+    /**
+     @brief permutes the indices of the tensor. For a tensor[N0][N1][N2][N3], the dimensions will be shifted to tensor[N3][N0][N1][N2].
+    */
+    tensor<T,N3,N0,N1,N2> index_shift(){
+        tensor<T,N0,N1,N2,N3>& a = *this;
+        tensor<T,N3,N0,N1,N2> new_tensor;
+        new_tensor.init_const(N3,0);
+
+        for(int i0=0;i0<n0;i0++){for(int i1=0;i1<N1;i1++){for(int i2=0;i2<N2;i2++){for(int i3=0;i3<N3;i3++){
+            new_tensor(i3,i0,i1,i2) = a(i0,i1,i2,i3);
+        }}}}
+
+        return new_tensor;
+    }
+
     #ifdef __ARM_64BIT_STATE
     /**
-        @brief return a simd vector over the last dimension of the tensor x at location i0,i1,i2,i3. tensor::V is write-safe!
-        @param i0,i1,i2,i3 indices
-        @return A vector containing x[i0][i1][i2][i3:i3+2]
+     @brief return a simd vector over the last dimension of the tensor x at location i0,i1,i2,i3. tensor::V is write-safe!
+     @param i0,i1,i2,i3 indices
+     @return A vector containing x[i0][i1][i2][i3:i3+2]
      */
     float32x2_t& V2(idx_t i0,idx_t i1,idx_t i2,idx_t i3){
         range_chk(0,i0,n0);
@@ -438,32 +459,28 @@ struct tensor{
 
         return ::V2(address);
     }
-    #endif
 
-    #ifdef __ARM_64BIT_STATE
     /**
-        @brief return a simd vector over the last dimension of the tensor x at location i0,i1,i2,i3. tensor::V is write-safe!
-        @param i0,i1,i2,i3 indices
-        @return A vector containing x[i0][i1][i2][i3:i3+2]
+     @brief return a simd vector over the last dimension of the tensor x at location i0,i1,i2,i3. tensor::V is write-safe!
+     @param i0,i1,i2,i3 indices
+     @return A vector containing x[i0][i1][i2][i3:i3+2]
      */
     float32x4_t& V4(idx_t i0,idx_t i1,idx_t i2,idx_t i3){
         range_chk(0,i0,n0);
         range_chk(0,i1,N1);
         range_chk(0,i2,N2);
-        range_chk(0,i3+7,N3);
+        range_chk(0,i3+3,N3);
 
         tensor<T,N0,N1,N2,N3>& a = *this;
         T* address = &(a(i0,i1,i2,i3));
 
         return ::V4(address);
     }
-    #endif
 
-    #ifdef __ARM_64BIT_STATE
     /**
-        @brief return a simd vector over the last dimension of the tensor x at location i0,i1,i2,i3. tensor::V is write-safe!
-        @param i0,i1,i2,i3 indices
-        @return A vector containing x[i0][i1][i2][i3:i3+2]
+     @brief return a simd vector over the last dimension of the tensor x at location i0,i1,i2,i3. tensor::V is write-safe!
+     @param i0,i1,i2,i3 indices
+     @return A vector containing x[i0][i1][i2][i3:i3+2]
      */
     float16x8_t& V8(idx_t i0,idx_t i1,idx_t i2,idx_t i3){
         range_chk(0,i0,n0);
@@ -479,8 +496,8 @@ struct tensor{
     #endif
 
     /**
-         @brief set the device shadow of this array
-         @param (dev) device address (may be null)
+     @brief set the device shadow of this array
+     @param (dev) device address (may be null)
      */
     void set_dev(tensor<T,N0,N1,N2,N3>* dev){
         #if __CUDACC__

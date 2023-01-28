@@ -50,11 +50,11 @@ struct Convolution2D{
     AdaDelta<OC> opt_b;                    /**< optimizer for b */
 
     /**
-         @brief initialize the layer
-         @param (opt) command line options
-         @param (lgr) logger
-         @param (rg) random number generator for initializing weights
-         @param (cfg) configuration parameters
+     @brief initialize the layer
+     @param (opt) command line options
+     @param (lgr) logger
+     @param (rg) random number generator for initializing weights
+     @param (cfg) configuration parameters
     */
     void init(cmdline_opt opt, logger * lgr, rnd_gen_t& rg, Convolution2DCfg cfg){
         this->opt = opt;
@@ -70,10 +70,10 @@ struct Convolution2D{
     }
 
     /**
-         @brief set the device pointer for this and all subobjects
-         @param (dev) a device memory or null
+     @brief set the device pointer for this and all subobjects
+     @param (dev) a device memory or null
 
-         @details if dev is not null, dev fields of all subojects 
+     @details if dev is not null, dev fields of all subojects 
          point to the corresponding subjects in the device memory.
          if dev is not null, all dev fields become null.
     */
@@ -94,19 +94,19 @@ struct Convolution2D{
     }
 
     /**
-         @brief the baseline (serial) implementation of update
+     @brief the baseline (serial) implementation of update
 
-         @details called both by cpu implementation (update_cpu_base) and
+     @details called both by cpu implementation (update_cpu_base) and
          cuda implementation (update_cuda_base). the call sequence update
          -> update_cpu_base -> update_base on cpu and and is update ->
          update_cuda_base -> update_cuda_base_global ->
          update_cuda_base_device -> update_base
 
-         @sa update
-         @sa update_cpu_base
-         @sa update_cuda_base
-         @sa update_cuda_base_global
-         @sa update_cuda_base_device
+     @sa update
+     @sa update_cpu_base
+     @sa update_cuda_base
+     @sa update_cuda_base_global
+     @sa update_cuda_base_device
     */
     __device__ __host__
     void update_base(){
@@ -116,12 +116,12 @@ struct Convolution2D{
     }
 
     /**
-         @brief the device function of update called from the 
+     @brief the device function of update called from the 
          global (non-member) function
-         @sa update
-         @sa update_cuda_base
-         @sa update_cuda_base_global
-         @sa update_base
+     @sa update
+     @sa update_cuda_base
+     @sa update_cuda_base_global
+     @sa update_base
     */
     __device__
     void update_cuda_base_device(){
@@ -129,12 +129,12 @@ struct Convolution2D{
     }
 
     /**
-         @brief a cuda version of baseline code called from the 
+     @brief a cuda version of baseline code called from the 
          entry function (update)
-         @sa update
-         @sa update_cuda_base_device
-         @sa update_cuda_base_global
-         @sa update_base
+     @sa update
+     @sa update_cuda_base_device
+     @sa update_cuda_base_global
+     @sa update_base
     */
     void update_cuda_base(){
         #if __CUDACC__
@@ -146,38 +146,38 @@ struct Convolution2D{
     }
 
     /**
-         @brief a cpu version of baseline code called from the 
+     @brief a cpu version of baseline code called from the 
          entry function (update)
-         @sa update
-         @sa update_base
+     @sa update
+     @sa update_base
     */
     void update_cpu_base(){
         update_base();
     }
 
     /**
-         @brief update weights of all sublayers with gradients
+     @brief update weights of all sublayers with gradients
          that must have been computed
-         @sa update_cpu_base
-         @sa update_cuda_base
-         @sa update_cuda_base_global
-         @sa update_cuda_base_device
-         @sa update_base
-         @sa forward
-         @sa backward
+     @sa update_cpu_base
+     @sa update_cuda_base
+     @sa update_cuda_base_global
+     @sa update_cuda_base_device
+     @sa update_base
+     @sa forward
+     @sa backward
     */
     void update(){
         log_start_fun(lgr);
         tsc_t t0 = get_tsc();
-        switch (opt.algo){
+        switch(opt.algo){
             /* add case for your implementations here */
         case algo_cpu_base:
-            update_cpu_base();break;
+            update_cpu_base(); break;
         case algo_cuda_base:
-            update_cuda_base();break;
+            update_cuda_base(); break;
         default:
             /* fallback to base */
-            if (opt.cuda_algo){
+            if(opt.cuda_algo){
                 update_cuda_base();
             }else{
                 update_cpu_base();
@@ -189,21 +189,21 @@ struct Convolution2D{
     }
 
     /**
-         @brief the baseline (serial) implementation of forward
-         @param (x) input images
-         @param (training) 1 if it is called in training not testing
+     @brief the baseline (serial) implementation of forward
+     @param (x) input images
+     @param (training) 1 if it is called in training not testing
 
-         @details called both by cpu implementation (forward_cpu_base) and
+     @details called both by cpu implementation (forward_cpu_base) and
          cuda implementation (forward_cuda_base). the call sequences are
          forward -> forward_cpu_base -> forward_base on cpu and
          forward -> forward_cuda_base -> forward_cuda_base_global ->
          forward_cuda_base_device -> forward_base on gpu
 
-         @sa forward
-         @sa forward_cpu_base
-         @sa forward_cuda_base
-         @sa forward_cuda_base_global
-         @sa forward_cuda_base_device
+     @sa forward
+     @sa forward_cpu_base
+     @sa forward_cuda_base
+     @sa forward_cuda_base_global
+     @sa forward_cuda_base_device
     */
     __device__ __host__ 
     void forward_base(tensor<real,maxB,IC,H,W>& x, int training){
@@ -232,22 +232,22 @@ struct Convolution2D{
     }
 
     /**
-         @brief My implementation of a forward using simd (nothig different by now)
+     @brief My implementation of a forward using simd (nothig different by now)
          on the ARM architecture. Called by the implementations algo_cpu_simd_arm
-         @param (x) input images
-         @param (training) 1 if it is called in training not testing
+     @param (x) input images
+     @param (training) 1 if it is called in training not testing
 
-         @details called both by cpu implementation (forward_cpu_base) and
+     @details called both by cpu implementation (forward_cpu_base) and
          cuda implementation (forward_cuda_base). the call sequences are
          forward -> forward_cpu_base -> forward_base on cpu and
          forward -> forward_cuda_base -> forward_cuda_base_global ->
          forward_cuda_base_device -> forward_base on gpu
 
-         @sa forward
-         @sa forward_cpu_base
-         @sa forward_cuda_base
-         @sa forward_cuda_base_global
-         @sa forward_cuda_base_device
+     @sa forward
+     @sa forward_cpu_base
+     @sa forward_cuda_base
+     @sa forward_cuda_base_global
+     @sa forward_cuda_base_device
     */
     __device__ __host__ 
     void forward_simd_arm(tensor<real,maxB,IC,H,W>& x, int training){
@@ -266,7 +266,7 @@ struct Convolution2D{
                 for(idx_t oc = 0;oc < OC;oc++){                     // for each output channel
                     for(idx_t i = 0;i < H - K + 1;i++){             // for each output pixel
                         idx_t j = 0;
-                        for(;j < W - K + 1;j += 4){                 // for each output pixel
+                        for(;j + 4 < W - K + 1;j += 4){             // for each output pixel
                             /*
                                 We will apply simd to the loop over j (over the columns in x), meaning we compute two output pixels simultaneously.
                                 The vectors will contain four lanes and we'll deal with the remainder iterations explicitly.
@@ -362,43 +362,43 @@ struct Convolution2D{
     }
 
     /**
-         @brief Custom forward for the cpu version using simd
-         @param (x) input images
-         @param (training) 1 if it is called in training not testing
-         @sa forward
-         @sa forward_simd
+     @brief Custom forward for the cpu version using simd
+     @param (x) input images
+     @param (training) 1 if it is called in training not testing
+     @sa forward
+     @sa forward_simd
     */
     void forward_cpu_simd_arm(tensor<real,maxB,IC,H,W>& x, int training){
         forward_simd_arm(x, training);
     }
 
     /**
-         @brief forward phase of the layer
-         @param (x) input images
-         @param (training) 1 if it is called in training not testing
-         @sa forward_base
-         @sa forward_cpu_base
-         @sa forward_cuda_base
-         @sa forward_cuda_base_global
-         @sa forward_cuda_base_device
-         @sa backward
-         @sa update
+     @brief forward phase of the layer
+     @param (x) input images
+     @param (training) 1 if it is called in training not testing
+     @sa forward_base
+     @sa forward_cpu_base
+     @sa forward_cuda_base
+     @sa forward_cuda_base_global
+     @sa forward_cuda_base_device
+     @sa backward
+     @sa update
     */
     tensor<real,maxB,OC,H-K+1,W-K+1>& forward(tensor<real,maxB,IC,H,W>& x, int training){
         log_start_fun(lgr);
         tsc_t t0 = get_tsc();
-        switch (opt.algo){
+        switch(opt.algo){
             /* add case for your implementations here */
         case algo_cpu_base:
-            forward_cpu_base(x, training);break;
+            forward_cpu_base(x, training); break;
         case algo_cuda_base:
-            forward_cuda_base(x, training);break;
+            forward_cuda_base(x, training); break;
         case algo_cpu_test:
-            forward_cpu_test(x, training);break;
+            forward_cpu_test(x, training); break;
         case algo_cpu_simd_arm:
-            forward_cpu_simd_arm(x, training);break;
+            forward_cpu_simd_arm(x, training); break;
         default:
-            if (opt.cuda_algo){
+            if(opt.cuda_algo){
                 forward_cuda_base(x, training);
             }else{
                 forward_cpu_base(x, training);
@@ -408,20 +408,21 @@ struct Convolution2D{
         log_end_fun(lgr, t0, t1);
         return y;
     }
+
     /**
-         @brief the baseline (serial) implementation of backward
-         @param (gy) gradient of loss with respect to the output
-         @details called both by cpu implementation (backward_cpu_base)
-         and cuda implementation (backward_cuda_base). the call sequence
-         backward -> backward_cpu_base -> backward_base on cpu and and is
-         backward -> backward_cuda_base -> backward_cuda_base_global ->
-         backward_cuda_base_device -> backward_base
-         @sa backward
-         @sa backward_cpu_base
-         @sa backward_cuda_base
-         @sa backward_cuda_base_global
-         @sa backward_cuda_base_device
-         @sa backward_base
+     @brief the baseline (serial) implementation of backward
+     @param (gy) gradient of loss with respect to the output
+     @details called both by cpu implementation (backward_cpu_base)
+     and cuda implementation (backward_cuda_base). the call sequences are
+     backward -> backward_cpu_base -> backward_base on cpu and
+     backward -> backward_cuda_base -> backward_cuda_base_global ->
+     backward_cuda_base_device -> backward_base
+     @sa backward
+     @sa backward_cpu_base
+     @sa backward_cuda_base
+     @sa backward_cuda_base_global
+     @sa backward_cuda_base_device
+     @sa backward_base
     */
     __device__ __host__ 
     void backward_base(tensor<real,maxB,OC,H-K+1,W-K+1>& gy){
@@ -430,14 +431,14 @@ struct Convolution2D{
         gb.set_n0(OC);
         gx.set_n0(B);
         tensor<real,maxB,IC,H,W>& x = *x_ptr;
-        for(idx_t oc = 0;oc < OC;oc++){     // output channel
-            for(idx_t ic = 0;ic < IC;ic++){ // input channel
-                for(idx_t di = 0;di < K;di++){ // kernel pixel
-                    for(idx_t dj = 0;dj < K;dj++){ // kernel pixel
+        for(idx_t oc = 0;oc < OC;oc++){                                         // output channel
+            for(idx_t ic = 0;ic < IC;ic++){                                     // input channel
+                for(idx_t di = 0;di < K;di++){                                  // kernel pixel
+                    for(idx_t dj = 0;dj < K;dj++){                              // kernel pixel
                         real v = 0.0;
-                        for(idx_t s = 0;s < B;s++){ // training samples
-                            for(idx_t i = 0;i < H - K + 1;i++){ // sample pixel
-                                for(idx_t j = 0;j < W - K + 1;j++){ // sample pixel
+                        for(idx_t s = 0;s < B;s++){                             // training samples
+                            for(idx_t i = 0;i < H - K + 1;i++){                 // sample pixel
+                                for(idx_t j = 0;j < W - K + 1;j++){             // sample pixel
                                     v += gy(s,oc,i,j) * x(s,ic,i+di,j+dj);
                                 }
                             }
@@ -447,6 +448,7 @@ struct Convolution2D{
                 }
             }
         }
+
         for(idx_t oc = 0;oc < OC;oc++){
             real v = 0.0;
             for(idx_t s = 0;s < B;s++){
@@ -458,6 +460,7 @@ struct Convolution2D{
             }
             gb(oc) = v;
         }
+
         for(idx_t s = 0;s < B;s++){
             for(idx_t ic = 0;ic < IC;ic++){
                 for(idx_t i = 0;i < H;i++){
@@ -466,7 +469,7 @@ struct Convolution2D{
                         for(idx_t oc = 0;oc < OC;oc++){
                             for(idx_t di = 0;di < K;di++){
                                 for(idx_t dj = 0;dj < K;dj++){
-                                    if (0 <= i - di && i - di < H - K + 1
+                                    if(0 <= i - di && i - di < H - K + 1
                                             && 0 <= j - dj && j - dj < W - K + 1){
                                         v += gy(s,oc,i-di,j-dj) * w(oc,ic,di,dj);
                                     }
@@ -479,73 +482,201 @@ struct Convolution2D{
             }
         }
     }
+
     /**
-         @brief the device function of backward called from the 
-         global (non-member) function
-         @param (gy) gradient of loss with respect to the output
-         @sa backward
-         @sa backward_cuda_base
-         @sa backward_cuda_base_global
-         @sa backward_base
+     @brief A simd implementation of backward on ARM.
+     @param (gy) gradient of loss with respect to the output
+     @details called both by cpu implementation (backward_cpu_base)
+     and cuda implementation (backward_cuda_base). the call sequences are
+     backward -> backward_cpu_base -> backward_base on cpu and
+     backward -> backward_cuda_base -> backward_cuda_base_global ->
+     backward_cuda_base_device -> backward_base
+     @sa backward
+     @sa backward_cpu_base
+     @sa backward_cuda_base
+     @sa backward_cuda_base_global
+     @sa backward_cuda_base_device
+     @sa backward_base
+    */
+    __device__ __host__ 
+    void backward_simd_arm(tensor<real,maxB,OC,H-K+1,W-K+1>& gy){
+        #ifdef __ARM_64BIT_STATE
+            idx_t B = gy.n0;
+            gw.set_n0(OC);
+            gb.set_n0(OC);
+            gx.set_n0(B);
+
+            real v;
+            float32x4_t vec;
+
+            tensor<real,maxB,IC,H,W>& x = *x_ptr;
+            for(idx_t oc = 0;oc < OC;oc++){                                         // output channel
+                for(idx_t ic = 0;ic < IC;ic++){                                     // input channel
+                    for(idx_t di = 0;di < K;di++){                                  // kernel pixel
+                        for(idx_t dj = 0;dj < K;dj++){                              // kernel pixel
+                            /*
+                             I will parallelize the loop over j since it accesses elements in the last dimension
+                             of gy. The elements of the vector are summed in the end using vaddvq_f32.
+                            */
+                            vec = vdupq_n_f32(0);
+                            v = 0;
+
+                            for(idx_t s = 0;s < B;s++){                             // training samples
+                                for(idx_t i = 0;i < H - K + 1;i++){                 // sample pixel
+                                    idx_t j = 0;
+                                    for(;j + 4 < W - K + 1;j+=4){                   // sample pixel
+                                        vec = vfmaq_f32(vec,gy.V4(s,oc,i,j),x.V4(s,ic,i+di,j+dj));
+                                            // vfma(a,b,c) = a + b * c
+                                    }
+                                    for(;j < W - K + 1;j++){                        // remainder iterations
+                                        v += gy(s,oc,i,j) * x(s,ic,i+di,j+dj);
+                                    }
+                                }
+                            }
+                            gw(oc,ic,di,dj) = v + vaddvq_f32(vec);
+                        }
+                    }
+                }
+            }
+
+            for(idx_t oc = 0;oc < OC;oc++){
+                vec = vdupq_n_f32(0);
+                v = 0.0;
+                for(idx_t s = 0;s < B;s++){
+                    for(idx_t i = 0;i < H - K + 1;i++){
+                        idx_t j = 0;
+                        for(;j + 4 < W - K + 1;j+=4){
+                            vec = vaddq_f32(vec,gy.V4(s,oc,i,j));
+                        }
+                        for(;j < W - K + 1;j++){                    // remainder iterations
+                            v += gy(s,oc,i,j);
+                        }
+                    }
+                }
+                gb(oc) = v + vaddvq_f32(vec);
+            }
+
+            for(idx_t s = 0;s < B;s++){
+                for(idx_t ic = 0;ic < IC;ic++){
+                    for(idx_t i = 0;i < H;i++){
+                        idx_t j = 0;
+                        for(;j + 4 < W;j+=4){
+                            vec = vdupq_n_f32(0);
+                            for(idx_t oc = 0;oc < OC;oc++){
+                                for(idx_t di = 0;di < K;di++){
+                                    for(idx_t dj = 0;dj < K;dj++){
+                                        if(0 <= i - di && i - di < H - K + 1 && 0 <= j - dj && j - dj < W - K + 1){
+                                            vec = vfmaq_f32(vec,gy.V4(s,oc,i-di,j-dj),vdupq_n_f32(w(oc,ic,di,dj)));
+                                                // vfma(a,b,c) = a + b * c
+                                            // v += gy(s,oc,i-di,j-dj) * w(oc,ic,di,dj);
+                                        }
+                                    }
+                                }
+                            }
+                            gx.V4(s,ic,i,j) = vec;
+                        }
+                        for(;j < W;j++){                            // remainder iterations
+                            v = 0.0;
+                            for(idx_t oc = 0;oc < OC;oc++){
+                                for(idx_t di = 0;di < K;di++){
+                                    for(idx_t dj = 0;dj < K;dj++){
+                                        if(0 <= i - di && i - di < H - K + 1 && 0 <= j - dj && j - dj < W - K + 1){
+                                            v += gy(s,oc,i-di,j-dj) * w(oc,ic,di,dj);
+                                        }
+                                    }
+                                }
+                            }
+                            gx(s,ic,i,j) = v;
+                        }
+                    }
+                }
+            }
+        #endif
+    }
+
+    /**
+     @brief the device function of backward called from the 
+     global (non-member) function
+     @param (gy) gradient of loss with respect to the output
+     @sa backward
+     @sa backward_cuda_base
+     @sa backward_cuda_base_global
+     @sa backward_base
     */
     __device__
     void backward_cuda_base_device(tensor<real,maxB,OC,H-K+1,W-K+1>& gy){
         backward_base(gy);
     }
+
     /**
-         @brief a cuda version of baseline code called from the 
-         entry function (backward)
-         @param (gy) gradient of loss with respect to the output
-         @sa backward
-         @sa backward_cuda_base_global
-         @sa backward_cuda_base_device
-         @sa backward_base
+     @brief a cuda version of baseline code called from the 
+     entry function (backward)
+     @param (gy) gradient of loss with respect to the output
+     @sa backward
+     @sa backward_cuda_base_global
+     @sa backward_cuda_base_device
+     @sa backward_base
     */
     void backward_cuda_base(tensor<real,maxB,OC,H-K+1,W-K+1>& gy){
-#if __CUDACC__
-        launch_and_sync((backward_cuda_base_global<<<1,1>>>(dev, gy.dev)));
-#else
-        (void)gy;
-        err_cuda_code_non_cuda_compiler(opt.algo_s);
-#endif
+        #if __CUDACC__
+            launch_and_sync((backward_cuda_base_global<<<1,1>>>(dev, gy.dev)));
+        #else
+            (void)gy;
+            err_cuda_code_non_cuda_compiler(opt.algo_s);
+        #endif
     }
+
     /**
-         @brief a cpu version of baseline code called from the 
-         entry function (backward)
-         @param (gy) gradient of loss with respect to the output
-         @sa backward
-         @sa backward_base
+     @brief a cpu version of baseline code called from the 
+     entry function (backward)
+     @param (gy) gradient of loss with respect to the output
+     @sa backward
+     @sa backward_base
     */
     void backward_cpu_base(tensor<real,maxB,OC,H-K+1,W-K+1>& gy){
         backward_base(gy);
     }
+
     /**
-         @brief calc the gradient of loss wrt the input (x)
-         @param (gy) gradient of loss with respect to the output
-         @details calc the gradient of loss wrt the input. along the way,
-         it also calculates the gradient of loss wrt weights for
-         all sublayers that have weights. since this is the entire
-         network, gy is actually a vector whose components are all 1.
-         (loss = sum of losses of each data).
-         @sa backward_cpu_base
-         @sa backward_cuda_base
-         @sa backward_cuda_base_global
-         @sa backward_cuda_base_device
-         @sa backward_base
-         @sa forward
-         @sa update
+     @brief an ARM simd version of baseline code called from the 
+     entry function (backward)
+     @param (gy) gradient of loss with respect to the output
+     @sa backward
+     @sa backward_base
+    */
+    void backward_cpu_simd_arm(tensor<real,maxB,OC,H-K+1,W-K+1>& gy){
+        backward_simd_arm(gy);
+    }
+
+    /**
+     @brief calc the gradient of loss wrt the input (x)
+     @param (gy) gradient of loss with respect to the output
+     @details calc the gradient of loss wrt the input. along the way,
+     it also calculates the gradient of loss wrt weights for
+     all sublayers that have weights. since this is the entire
+     network, gy is actually a vector whose components are all 1.
+     (loss = sum of losses of each data).
+     @sa backward_cpu_base
+     @sa backward_cuda_base
+     @sa backward_cuda_base_global
+     @sa backward_cuda_base_device
+     @sa backward_base
+     @sa forward
+     @sa update
     */
     tensor<real,maxB,IC,H,W>& backward(tensor<real,maxB,OC,H-K+1,W-K+1>& gy){
         log_start_fun(lgr);
         tsc_t t0 = get_tsc();
-        switch (opt.algo){
+        switch(opt.algo){
             /* add case for your implementations here */
         case algo_cpu_base:
-            backward_cpu_base(gy);break;
+            backward_cpu_base(gy); break;
         case algo_cuda_base:
-            backward_cuda_base(gy);break;
+            backward_cuda_base(gy); break;
+        case algo_cpu_simd_arm:
+            backward_cpu_simd_arm(gy); break;
         default:
-            if (opt.cuda_algo){
+            if(opt.cuda_algo){
                 backward_cuda_base(gy);
             }else{
                 backward_cpu_base(gy);
@@ -555,40 +686,43 @@ struct Convolution2D{
         log_end_fun(lgr, t0, t1);
         return gx;
     }
+
     /* member functions below assume data are on the host.
          they are only for checking (debugging) implementations */
     /**
-         @brief randomly set all gradients to values between p and q
-         @param (rg) random number generator
-         @param (p) minimum value of a component
-         @param (q) maximum value of a component
-         @details only used for checking gradient computation
+     @brief randomly set all gradients to values between p and q
+     @param (rg) random number generator
+     @param (p) minimum value of a component
+     @param (q) maximum value of a component
+     @details only used for checking gradient computation
     */
     void rand_grad(rnd_gen_t& rg, real p, real q){
         gw.init_uniform(OC, rg, p, q);
         gb.init_uniform(OC, rg, p, q);
     }
+
     /**
-         @brief set all gradients to gradients of another object o
-         @param (o) the object from which gradients get copied
-         @details only used for checking gradient computation
+     @brief set all gradients to gradients of another object o
+     @param (o) the object from which gradients get copied
+     @details only used for checking gradient computation
     */
     void copy_grad(Convolution2D<maxB,IC,H,W,K,OC>& o){
         gw = o.gw;
         gb = o.gb;
     }
+
     /**
-         @brief w += alpha * gw
-         @param (alpha) alpha of w += alpha * gw
+     @brief w += alpha * gw
+     @param (alpha) alpha of w += alpha * gw
     */
     void add_grad(real alpha){
         w.add_(alpha, gw);
         b.add_(alpha, gb);
     }
     /**
-         @brief take the inner product of gradients
-         @param (o) the object to take the inner product with
-         @details take the inner product of this object's gradient and b's
+     @brief take the inner product of gradients
+     @param (o) the object to take the inner product with
+     @details take the inner product of this object's gradient and b's
          gradient. only used for checking gradient computation
     */
     double grad_dot_grad(Convolution2D<maxB,IC,H,W,K,OC>& o){
@@ -597,20 +731,20 @@ struct Convolution2D{
 };
 
 /**
-     @brief entry point of this header file
-     @param (argc) the number of command line args
-     @param (argv) command line args
-     @sa convolution_grad_check_rand
-     @details if this header file is included from
-     a main C++ file and define convolution_main to be main
-     (e.g., with -Dconvolution_main=main), then this
-     function becomes th main function of the executable.
-     it calls grad_check repeatedly to test
-     the implementation of backward of convolution.
+ @brief entry point of this header file
+ @param (argc) the number of command line args
+ @param (argv) command line args
+ @sa convolution_grad_check_rand
+ @details if this header file is included from
+ a main C++ file and define convolution_main to be main
+ (e.g., with -Dconvolution_main=main), then this
+ function becomes th main function of the executable.
+ it calls grad_check repeatedly to test
+ the implementation of backward of convolution.
 */
 int convolution_main(int argc, char ** argv){
     cmdline_opt opt = parse_args(argc, argv);
-    if (opt.error || opt.help) usage(argv[0]);
+    if(opt.error || opt.help) usage(argv[0]);
     const idx_t maxB = MAX_BATCH_SIZE;
     const idx_t B = min_i(maxB, opt.batch_size);
     const idx_t IC = 1;

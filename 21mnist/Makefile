@@ -26,8 +26,9 @@
 #   for specific compilers
 #
 vers :=
+vers += test
 vers += cpu_base
-vers += cuda_base
+#vers += cuda_base
 #vers += fast
 
 #
@@ -96,6 +97,7 @@ nvcc_ldflags :=
 cpu_base_cxx := clang++
 cuda_base_cxx := nvcc
 fast_cxx := clang++
+test_cxx := clang++
 
 #
 # toplevel C++ file of each version
@@ -105,6 +107,7 @@ fast_cxx := clang++
 cpu_base_cc := mnist.cc
 cuda_base_cc := mnist.cc
 fast_cc := mnist.cc
+test_cc := test.cc
 
 #
 # version-specific flags
@@ -118,6 +121,9 @@ cuda_base_ldflags :=
 
 fast_flags := 
 fast_ldflags := 
+
+test_flags := 
+test_ldflags := 
 
 #
 # version- and compiler-specific flags
@@ -155,6 +161,18 @@ fast_nvc++_ldflags   :=
 
 fast_nvcc_flags    :=
 fast_nvcc_ldflags    :=
+
+test_g++_flags     :=
+test_g++_ldflags     :=
+
+test_clang++_flags := -Wno-unused-function
+test_clang++_ldflags :=
+
+test_nvc++_flags   :=
+test_nvc++_ldflags   :=
+
+test_nvcc_flags    :=
+test_nvcc_ldflags    :=
 
 #
 # you are unlikely to change anything below
