@@ -527,7 +527,7 @@ struct tensor{
      @param i0,i1,i2,i3 indices
      @return A vector containing x[i0][i1][i2][i3:i3+16]
      */
-    realv& V16(idx_t i0,idx_t i1,idx_t i2,idx_t i3){
+    realv& V16(idx_t i0,idx_t i1=0,idx_t i2=0,idx_t i3=0){
         range_chk(0,i0,n0);
         range_chk(0,i1,N1);
         range_chk(0,i2,N2);

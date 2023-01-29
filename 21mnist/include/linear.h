@@ -287,7 +287,7 @@ struct Linear{
                             }
                         }
                     }
-                    vec = _mm512_add_ps(vec,b.V4(j));
+                    vec = _mm512_add_ps(vec,b.V16(j));
                     y.V16(i,j) = vec;
                     // y(i,j) = v + b(j);
                 }
