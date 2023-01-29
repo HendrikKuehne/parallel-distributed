@@ -523,7 +523,10 @@ struct tensor{
     #else
     
     /**
-     @brief return a simd vector over the last dimension of the tensor x at location i0,i1,i2,i3. tensor::V is write-safe!
+     @brief return a simd vector of the tensor x at location i0,i1,i2,i3. tensor::V is write-safe! The vector
+     is returned starting from i0,i1,i2,i3 according to the memeory layout - there is no check if this is
+     sensible! If, for example, i2 = i3 = 0, the returned values are only consecutive in the tensor if the
+     dimensions two and three have size one.
      @param i0,i1,i2,i3 indices
      @return A vector containing x[i0][i1][i2][i3:i3+16]
      */
