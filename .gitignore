@@ -5,3 +5,4 @@
 .vscode/
 .personal_access_token.txt
 21mnist/test.cc
+*.sh
