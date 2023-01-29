@@ -11,22 +11,20 @@
 #include "grad_check.h"
 
 /**
-     @brief configuration data for Linear
-     @details no configuration currently exist
+ @brief configuration data for Linear
+ @details no configuration currently exist
 */
 struct LinearCfg { };
 
 /**
-     @brief linear (fully connected) layer
-
-     @param (M) 
-     @param (N) 
-     @param (K0)
-     @param (K1)
-     @param (K2)
-
-     @details this layer takes as input a M x (K0 x K1 x K2) tensor x and
-     outputs a M x N matrix. essentially it is a matrix multiply y = x * w
+ @brief linear (fully connected) layer
+ @param (M) 
+ @param (N) 
+ @param (K0)
+ @param (K1)
+ @param (K2)
+ @details this layer takes as input a M x (K0 x K1 x K2) tensor x and
+ outputs a M x N matrix. essentially it is a matrix multiply y = x * w
  */
 template<idx_t M,idx_t N,idx_t K0,idx_t K1=1,idx_t K2=1>
 struct Linear{
@@ -74,20 +72,19 @@ struct Linear{
     */
     void set_dev(Linear<M,N,K0,K1,K2>* dev){
         #if __CUDACC__
-                this->dev = dev;
-                w.set_dev(dev ? &dev->w : 0);
-                b.set_dev(dev ? &dev->b : 0);
-                y.set_dev(dev ? &dev->y : 0);
-                gw.set_dev(dev ? &dev->gw : 0);
-                gb.set_dev(dev ? &dev->gb : 0);
-                gx.set_dev(dev ? &dev->gx : 0);
-                opt_w.set_dev(dev ? &dev->opt_w : 0);
-                opt_b.set_dev(dev ? &dev->opt_b : 0);
+            this->dev = dev;
+            w.set_dev(dev ? &dev->w : 0);
+            b.set_dev(dev ? &dev->b : 0);
+            y.set_dev(dev ? &dev->y : 0);
+            gw.set_dev(dev ? &dev->gw : 0);
+            gb.set_dev(dev ? &dev->gb : 0);
+            gx.set_dev(dev ? &dev->gx : 0);
+            opt_w.set_dev(dev ? &dev->opt_w : 0);
+            opt_b.set_dev(dev ? &dev->opt_b : 0);
         #else
-                (void)dev;
+            (void)dev;
         #endif
     }
-
 
     /**
      @brief the baseline (serial) implementation of update
@@ -133,9 +130,9 @@ struct Linear{
     */
     void update_cuda_base(){
         #if __CUDACC__
-                launch_and_sync((update_cuda_base_global<<<1,1>>>(dev)));
+            launch_and_sync((update_cuda_base_global<<<1,1>>>(dev)));
         #else
-                err_cuda_code_non_cuda_compiler(opt.algo_s);
+            err_cuda_code_non_cuda_compiler(opt.algo_s);
         #endif
     }
 
@@ -218,8 +215,8 @@ struct Linear{
         }
     }
 
-        /**
-     @brief A simd implementation of forward on ARM.
+    /**
+     @brief A simd implementation of forward on ARM / x86.
      @param (x) input images
      @param (training) 1 if it is called in training not testing
 
@@ -334,11 +331,11 @@ struct Linear{
     */
     void forward_cuda_base(tensor<real,M,K0,K1,K2>& x, int training){
         #if __CUDACC__
-                launch_and_sync((forward_cuda_base_global<<<1,1>>>(dev, x.dev, training)));
+            launch_and_sync((forward_cuda_base_global<<<1,1>>>(dev, x.dev, training)));
         #else
-                (void)x;
-                (void)training;
-                err_cuda_code_non_cuda_compiler(opt.algo_s);
+            (void)x;
+            (void)training;
+            err_cuda_code_non_cuda_compiler(opt.algo_s);
         #endif
     }
 
@@ -355,7 +352,7 @@ struct Linear{
     }
 
     /**
-     @brief an ARM simd version of the baseline code called from the 
+     @brief an ARM / x86 simd version of the baseline code called from the 
      entry function (forward)
      @param (x) input images
      @param (training) 1 if it is called in training not testing
@@ -459,7 +456,7 @@ struct Linear{
     }
 
     /**
-     @brief An arm simd implementation of backward
+     @brief An arm / x86 simd implementation of backward
      @param (gy) gradient of loss with respect to the output
      @details called both by cpu implementation (backward_cpu_base)
      and cuda implementation (backward_cuda_base). the call sequences are
@@ -636,7 +633,7 @@ struct Linear{
     }
 
     /**
-     @brief an arm simd version of baseline code called from the 
+     @brief an ARM / x86 simd version of baseline code called from the 
      entry function (backward)
      @param (gy) gradient of loss with respect to the output
      @sa backward
@@ -759,9 +756,9 @@ int linear_main(int argc, char ** argv){
     for(int iter = 0;iter < n_checks;iter++){
         printf("==== %d ====\n", iter);
         real e = grad_check<Linear<maxB,N,K>,
-                                                tensor<real,maxB,K>,
-                                                tensor<real,maxB,N>,
-                                                LinearCfg>(opt, &lgr, rg, cfg, M);
+                            tensor<real,maxB,K>,
+                            tensor<real,maxB,N>,
+                            LinearCfg>(opt, &lgr, rg, cfg, M);
         max_e = max_r(max_e, e);
         sum_e += e;
     }

@@ -20,11 +20,11 @@ struct Convolution2DCfg { };
 
      @param (maxB) the maximum number of images it can handle at a time (batch size)
      @param (IC) the number of channels per input image (the 
-                             original input image for MNIST has is grey scale
-                             and therefore has a single channel. 
-                             hidden layers have 32 or 64 channels.
+     original input image for MNIST has is grey scale
+     and therefore has a single channel. 
+     hidden layers have 32 or 64 channels.
      @param (H) height of an image (28 for an input image, 26 after the first 
-                            convolution layer and 24 after the second)
+     convolution layer and 24 after the second)
      @param (W) width of an image (same as H)
      @param (K) convolution kernel size (3 for MNIST). filter is K x K
      @param (OC) the number of channels per an output image
@@ -79,17 +79,17 @@ struct Convolution2D{
     */
     void set_dev(Convolution2D<maxB,IC,H,W,K,OC>* dev){
         #if __CUDACC__
-                this->dev = dev;
-                w.set_dev(dev ? &dev->w : 0);
-                b.set_dev(dev ? &dev->b : 0);
-                y.set_dev(dev ? &dev->y : 0);
-                gw.set_dev(dev ? &dev->gw : 0);
-                gb.set_dev(dev ? &dev->gb : 0);
-                gx.set_dev(dev ? &dev->gx : 0);
-                opt_w.set_dev(dev ? &dev->opt_w : 0);
-                opt_b.set_dev(dev ? &dev->opt_b : 0);
+            this->dev = dev;
+            w.set_dev(dev ? &dev->w : 0);
+            b.set_dev(dev ? &dev->b : 0);
+            y.set_dev(dev ? &dev->y : 0);
+            gw.set_dev(dev ? &dev->gw : 0);
+            gb.set_dev(dev ? &dev->gb : 0);
+            gx.set_dev(dev ? &dev->gx : 0);
+            opt_w.set_dev(dev ? &dev->opt_w : 0);
+            opt_b.set_dev(dev ? &dev->opt_b : 0);
         #else
-                (void)dev;
+            (void)dev;
         #endif
     }
 
@@ -97,10 +97,10 @@ struct Convolution2D{
      @brief the baseline (serial) implementation of update
 
      @details called both by cpu implementation (update_cpu_base) and
-         cuda implementation (update_cuda_base). the call sequence update
-         -> update_cpu_base -> update_base on cpu and and is update ->
-         update_cuda_base -> update_cuda_base_global ->
-         update_cuda_base_device -> update_base
+     cuda implementation (update_cuda_base). the call sequence update
+     -> update_cpu_base -> update_base on cpu and and is update ->
+     update_cuda_base -> update_cuda_base_global ->
+     update_cuda_base_device -> update_base
 
      @sa update
      @sa update_cpu_base
@@ -117,7 +117,7 @@ struct Convolution2D{
 
     /**
      @brief the device function of update called from the 
-         global (non-member) function
+     global (non-member) function
      @sa update
      @sa update_cuda_base
      @sa update_cuda_base_global
@@ -130,7 +130,7 @@ struct Convolution2D{
 
     /**
      @brief a cuda version of baseline code called from the 
-         entry function (update)
+     entry function (update)
      @sa update
      @sa update_cuda_base_device
      @sa update_cuda_base_global
@@ -138,16 +138,16 @@ struct Convolution2D{
     */
     void update_cuda_base(){
         #if __CUDACC__
-                assert(dev);
-                launch_and_sync((update_cuda_base_global<<<1,1>>>(dev)));
+            assert(dev);
+            launch_and_sync((update_cuda_base_global<<<1,1>>>(dev)));
         #else
-                err_cuda_code_non_cuda_compiler(opt.algo_s);
+            err_cuda_code_non_cuda_compiler(opt.algo_s);
         #endif
     }
 
     /**
      @brief a cpu version of baseline code called from the 
-         entry function (update)
+     entry function (update)
      @sa update
      @sa update_base
     */
@@ -157,7 +157,7 @@ struct Convolution2D{
 
     /**
      @brief update weights of all sublayers with gradients
-         that must have been computed
+     that must have been computed
      @sa update_cpu_base
      @sa update_cuda_base
      @sa update_cuda_base_global
@@ -194,10 +194,10 @@ struct Convolution2D{
      @param (training) 1 if it is called in training not testing
 
      @details called both by cpu implementation (forward_cpu_base) and
-         cuda implementation (forward_cuda_base). the call sequences are
-         forward -> forward_cpu_base -> forward_base on cpu and
-         forward -> forward_cuda_base -> forward_cuda_base_global ->
-         forward_cuda_base_device -> forward_base on gpu
+     cuda implementation (forward_cuda_base). the call sequences are
+     forward -> forward_cpu_base -> forward_base on cpu and
+     forward -> forward_cuda_base -> forward_cuda_base_global ->
+     forward_cuda_base_device -> forward_base on gpu
 
      @sa forward
      @sa forward_cpu_base
@@ -233,15 +233,15 @@ struct Convolution2D{
 
     /**
      @brief My implementation of a forward using simd (nothig different by now)
-         on the ARM architecture. Called by the implementations algo_cpu_simd_arm
+     on the ARM / x86 architecture. Called by the implementations algo_cpu_simd
      @param (x) input images
      @param (training) 1 if it is called in training not testing
 
      @details called both by cpu implementation (forward_cpu_base) and
-         cuda implementation (forward_cuda_base). the call sequences are
-         forward -> forward_cpu_base -> forward_base on cpu and
-         forward -> forward_cuda_base -> forward_cuda_base_global ->
-         forward_cuda_base_device -> forward_base on gpu
+     cuda implementation (forward_cuda_base). the call sequences are
+     forward -> forward_cpu_base -> forward_base on cpu and
+     forward -> forward_cuda_base -> forward_cuda_base_global ->
+     forward_cuda_base_device -> forward_base on gpu
 
      @sa forward
      @sa forward_cpu_base
@@ -352,11 +352,11 @@ struct Convolution2D{
     */
     void forward_cuda_base(tensor<real,maxB,IC,H,W>& x, int training){
         #if __CUDACC__
-                launch_and_sync((forward_cuda_base_global<<<1,1>>>(dev, x.dev, training)));
+            launch_and_sync((forward_cuda_base_global<<<1,1>>>(dev, x.dev, training)));
         #else
-                (void)x;
-                (void)training;
-                err_cuda_code_non_cuda_compiler(opt.algo_s);
+            (void)x;
+            (void)training;
+            err_cuda_code_non_cuda_compiler(opt.algo_s);
         #endif
     }
     
@@ -506,7 +506,7 @@ struct Convolution2D{
     }
 
     /**
-     @brief A simd implementation of backward on ARM.
+     @brief A simd implementation of backward on ARM / x86.
      @param (gy) gradient of loss with respect to the output
      @details called both by cpu implementation (backward_cpu_base)
      and cuda implementation (backward_cuda_base). the call sequences are
@@ -726,7 +726,7 @@ struct Convolution2D{
     }
 
     /**
-     @brief an ARM simd version of baseline code called from the 
+     @brief an ARM / x86 simd version of baseline code called from the 
      entry function (backward)
      @param (gy) gradient of loss with respect to the output
      @sa backward
