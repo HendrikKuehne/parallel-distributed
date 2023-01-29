@@ -211,6 +211,12 @@ docs/tags/HTML/index.html : docs/tags/dir $(tag_srcs)
 docs/tags/dir :
 	mkdir -p $@
 
+jupyter-env :
+	export PATH=/opt/nvidia/hpc_sdk/Linux_x86_64/22.7/compilers/bin:$$PATH
+	export PATH=/home/share/llvm/bin:$$PATH
+	which nvcc
+	which clang++
+
 doc : docs/doxy/html/index.html 
 doc : docs/tags/HTML/index.html
 
