@@ -90,11 +90,11 @@ typedef enum {
     algo_cuda_base,
     algo_cpu_test,
         /*I will only try to define a new forward function for the convolutional layer*/
-    algo_cpu_simd_arm,
+    algo_cpu_simd,
         /*
-            Parallelizing using the simd-instructions for ARM
-            * Forward for the convolutional layer in simd
-            * Forward for the linear layer in simd
+            Parallelizing using simd-instructions; automatic usage of either ARM or x86 Code depending on OS
+            * Forward and Backward Pass for the convolutional layer in simd
+            * Forward and Backward Pass for the linear layer in simd
         */
     algo_cpu_omp,
         /*
@@ -116,12 +116,8 @@ static algo_t parse_algo(const char * s) {
         return algo_cuda_base;
     }else if(strcmp(s, "cpu_test") == 0){
         return algo_cpu_test;
-    }else if(strcmp(s, "cpu_simd_arm") == 0){
-        #ifdef __ARM_64BIT_STATE
-            return algo_cpu_simd_arm;
-        #else
-            return algo_invalid;
-        #endif
+    }else if(strcmp(s, "cpu_simd") == 0){
+        return algo_cpu_simd;
     }else if(strcmp(s, "cpu_omp") == 0){
         return algo_cpu_omp;
         /* add cases here to handle your algorithms

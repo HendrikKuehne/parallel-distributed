@@ -236,26 +236,22 @@ struct Linear{
      @sa forward_cuda_base_device
     */
     __device__ __host__
-    void forward_simd_arm(tensor<real,M,K0,K1,K2>& x, int training){
+    void forward_simd(tensor<real,M,K0,K1,K2>& x, int training){
+        (void)training;
+        const idx_t m = x.n0;
+        y.set_n0(m);
+        x_ptr = &x;
+
+        real v;
         #ifdef __ARM_64BIT_STATE
-            (void)training;
-            const idx_t m = x.n0;
-            y.set_n0(m);
-            x_ptr = &x;
-
-            // since we need the modified elements to be in the last dimension of y, we will define a temporary y in
-            // which we store the results and a new b in which the biases are in the last dimension
-            tensor<real,1,1,M,N> y_tmp;
-            y_tmp.init_const(1,0);
-            tensor<real,1,1,1,N> b_tmp;
-            b_tmp.init_const(1,0);
-            for(int i=0;i<N;i++){b_tmp(0,0,0,i) = b(i);}
-
             float32x4_t vec;
-            real v;
+        #else
+            realv vec;
+        #endif
 
-            for(idx_t i = 0;i < m;i++){
-                idx_t j = 0;
+        for(idx_t i = 0;i < m;i++){
+            idx_t j = 0;
+            #ifdef __ARM_64BIT_STATE
                 for(;j+3 < N;j+=4){
                     /**
                      We will parallelize the loop over j since we only have access to vectors taken from the last dimension of a tensor.
@@ -271,30 +267,44 @@ struct Linear{
                             }
                         }
                     }
-                    vec = vaddq_f32(vec,b_tmp.V4(0,0,0,j));
-                    y_tmp.V4(0,0,i,j) = vec;
+                    vec = vaddq_f32(vec,b.V4(j));
+                    y.V4(i,j) = vec;
                     // y(i,j) = v + b(j);
                 }
-                for(;j < N;j++){           // remainder iterations - this is just the code from forward_cpu_base
-                    v = 0;
+            #else
+                for(;j+L-1 < N;j+=L){
+                    /**
+                     We will parallelize the loop over j since we only have access to vectors taken from the last dimension of a tensor.
+                     We'll use vectors with sixteen lanes.
+                    */
+                    vec = _mm512_set1_ps(0);
                     for(idx_t k0 = 0;k0 < K0;k0++){
                         for(idx_t k1 = 0;k1 < K1;k1++){
                             for(idx_t k2 = 0;k2 < K2;k2++){
-                                v += x(i,k0,k1,k2) * w(k0,k1,k2,j);
+                                // v += x(i,k0,k1,k2) * w(k0,k1,k2,j);
+                                vec = _mm512_fmadd_ps(w.V16(k0,k1,k2,j),_mm512_set1_ps(x(i,k0,k1,k2)),vec);
+                                    // _mm512_fmadd_ps(a,b,c) = a * b + c
                             }
                         }
                     }
-                    y_tmp(0,0,i,j) = v + b(j);
+                    vec = _mm512_add_ps(vec,b.V4(j));
+                    y.V16(i,j) = vec;
+                    // y(i,j) = v + b(j);
                 }
-            }
-
-            // writing the results to y
-            for(idx_t i = 0;i < m;i++){
-                for(idx_t j = 0;j < N;j++){
-                    y(i,j) = y_tmp(0,0,i,j);
+            #endif
+            
+            for(;j < N;j++){           // remainder iterations - this is just the code from forward_cpu_base
+                v = 0;
+                for(idx_t k0 = 0;k0 < K0;k0++){
+                    for(idx_t k1 = 0;k1 < K1;k1++){
+                        for(idx_t k2 = 0;k2 < K2;k2++){
+                            v += x(i,k0,k1,k2) * w(k0,k1,k2,j);
+                        }
+                    }
                 }
+                y(i,j) = v + b(j);
             }
-        #endif
+        }
     }
 
     /**
@@ -352,8 +362,8 @@ struct Linear{
      @sa forward
      @sa forward_base
     */
-    void forward_cpu_simd_arm(tensor<real,M,K0,K1,K2>& x, int training){
-        forward_simd_arm(x, training);
+    void forward_cpu_simd(tensor<real,M,K0,K1,K2>& x, int training){
+        forward_simd(x, training);
     }
 
     /**
@@ -377,8 +387,8 @@ struct Linear{
             forward_cpu_base(x, training);break;
         case algo_cuda_base:
             forward_cuda_base(x, training);break;
-        case algo_cpu_simd_arm:
-            forward_cpu_simd_arm(x, training);break;
+        case algo_cpu_simd:
+            forward_cpu_simd(x, training);break;
         default:
             if (opt.cuda_algo){
                 forward_cuda_base(x, training);
@@ -464,23 +474,18 @@ struct Linear{
      @sa backward_base
     */
     __device__ __host__
-    void backward_simd_arm(tensor<real,M,N>& gy){
-        #ifdef __ARM_64BIT_STATE
+    void backward_simd(tensor<real,M,N>& gy){
             const idx_t m = gy.n0;
             gw.set_n0(K0);
             gb.set_n0(N);
             gx.set_n0(m);
 
-            /**
-             Since we can only turn contiguous values into vectors, i.e. the last dimension of a tensor, we
-             will shift the indices of gy two times such that N is the size of the last dimension of gy.
-             UPDATE: This is not necessary since I can easily return vectors over the other dimensions of
-             a tensor if the following dimensions have size 1!
-            */
-            // tensor<real,1,1,M,N> gy_tmp = gy.index_shift().index_shift();
-
             real v = 0;
-            float32x4_t vec;
+            #ifdef __ARM_64BIT_STATE
+                float32x4_t vec;
+            #else
+                realv vec;
+            #endif
 
             tensor<real,M,K0,K1,K2>& x = *x_ptr;
 
@@ -488,15 +493,28 @@ struct Linear{
                 for(idx_t k1 = 0;k1 < K1;k1++){
                     for(idx_t k2 = 0;k2 < K2;k2++){
                         idx_t j = 0;
-                        for(;j + 3 < N;j+=4){
-                            vec = vdupq_n_f32(0);
-                            for(idx_t i = 0;i < m;i++){
-                                vec = vfmaq_f32(vec,gy.V4(i,j),vdupq_n_f32(x(i,k0,k1,k2)));
-                                    // vfma(a,b,c) = a + b * c
-                                // v += gy(i,j) * x(i,k0,k1,k2);
+                        #ifdef __ARM_64BIT_STATE
+                            for(;j + 3 < N;j+=4){
+                                vec = vdupq_n_f32(0);
+                                for(idx_t i = 0;i < m;i++){
+                                    vec = vfmaq_f32(vec,gy.V4(i,j),vdupq_n_f32(x(i,k0,k1,k2)));
+                                        // vfma(a,b,c) = a + b * c
+                                    // v += gy(i,j) * x(i,k0,k1,k2);
+                                }
+                                gw.V4(k0,k1,k2,j) = vec;
                             }
-                            gw.V4(k0,k1,k2,j) = vec;
-                        }
+                        #else
+                            for(;j + L - 1 < N;j+=L){
+                                vec = _mm512_set1_ps(0);
+                                for(idx_t i = 0;i < m;i++){
+                                    vec = _mm512_fmadd_ps(gy.V16(i,j),_mm512_set1_ps(x(i,k0,k1,k2)),vec);
+                                        // _mm512_fmadd_ps(a,b,c) = a * b + c
+                                    // v += gy(i,j) * x(i,k0,k1,k2);
+                                }
+                                gw.V16(k0,k1,k2,j) = vec;
+                            }
+                        #endif
+
                         for(;j < N;j++){        // remainder iterations
                             v = 0;
                             for(idx_t i = 0;i < m;i++){
@@ -508,16 +526,27 @@ struct Linear{
                 }
             }
 
-            tensor<real,1,1,1,N> gb_tmp; gb_tmp.init_const(1,0);
             idx_t j = 0;
-            for(;j + 3 < N;j+=4){
-                vec = vdupq_n_f32(0);
-                for(idx_t i = 0;i < m;i++){
-                    vec = vaddq_f32(vec,gy.V4(i,j));
-                    // v += gy(i, j);
+            #ifdef __ARM_64BIT_STATE
+                for(;j + 3 < N;j+=4){
+                    vec = vdupq_n_f32(0);
+                    for(idx_t i = 0;i < m;i++){
+                        vec = vaddq_f32(vec,gy.V4(i,j));
+                        // v += gy(i, j);
+                    }
+                    gb.V4(j) = vec;
                 }
-                gb.V4(0,0,0,j) = vec;
-            }
+            #else
+                for(;j + L - 1 < N;j+=L){
+                    vec = _mm512_set1_ps(0);
+                    for(idx_t i = 0;i < m;i++){
+                        vec = _mm512_add_ps(vec,gy.V16(i,j));
+                        // v += gy(i, j);
+                    }
+                    gb.V16(j) = vec;
+                }
+            #endif
+
             for(;j < N;j++){                // remainder iterations
                 v = 0;
                 for(idx_t i = 0;i < m;i++){
@@ -531,22 +560,36 @@ struct Linear{
                     for(idx_t k1 = 0;k1 < K1;k1++){
                         for(idx_t k2 = 0;k2 < K2;k2++){
                             idx_t j = 0;
+                            #ifdef __ARM_64BIT_STATE
+                                vec = vdupq_n_f32(0);
+                                for(;j + 3 < N;j+=4){
+                                    vec = vfmaq_f32(vec,gy.V4(i,j),w.V4(k0,k1,k2,j));
+                                        // vfma(a,b,c) = a + b * c
+                                    // v += gy(i,j) * w(k0,k1,k2,j);
+                                }
+                            #else
+                                vec = _mm512_set1_ps(0);
+                                for(;j + L - 1 < N;j+=L){
+                                    vec = _mm512_fmadd_ps(gy.V16(i,j),w.V16(k0,k1,k2,j),vec);
+                                        // _mm512_fmadd_ps(a,b,c) = a * b + c
+                                    // v += gy(i,j) * w(k0,k1,k2,j);
+                                }
+                            #endif
+
                             v = 0;
-                            vec = vdupq_n_f32(0);
-                            for(;j + 3 < N;j+=4){
-                                vec = vfmaq_f32(vec,gy.V4(i,j),w.V4(k0,k1,k2,j));
-                                    // vfma(a,b,c) = a + b * c
-                                // v += gy(i,j) * w(k0,k1,k2,j);
-                            }
                             for(;j < N;j++){                    // remainder iterations
                                 v += gy(i,j) * w(k0,k1,k2,j);
                             }
-                            gx(i,k0,k1,k2) = v + vaddvq_f32(vec);
+
+                            #ifdef __ARM_64BIT_STATE
+                                gx(i,k0,k1,k2) = v + vaddvq_f32(vec);
+                            #else
+                                gx(i,k0,k1,k2) = v + _mm512_reduce_add_ps(vec);
+                            #endif
                         }
                     }
                 }
             }
-        #endif
     }
 
     /**
@@ -599,8 +642,8 @@ struct Linear{
      @sa backward
      @sa backward_base
     */
-    void backward_cpu_simd_arm(tensor<real,M,N>& gy){
-        backward_simd_arm(gy);
+    void backward_cpu_simd(tensor<real,M,N>& gy){
+        backward_simd(gy);
     }
 
     /**
@@ -628,8 +671,8 @@ struct Linear{
             backward_cpu_base(gy);break;
         case algo_cuda_base:
             backward_cuda_base(gy);break;
-        case algo_cpu_simd_arm:
-            backward_cpu_simd_arm(gy);break;
+        case algo_cpu_simd:
+            backward_cpu_simd(gy);break;
         default:
             if (opt.cuda_algo){
                 backward_cuda_base(gy);

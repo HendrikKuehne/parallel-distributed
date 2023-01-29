@@ -250,22 +250,23 @@ struct Convolution2D{
      @sa forward_cuda_base_device
     */
     __device__ __host__ 
-    void forward_simd_arm(tensor<real,maxB,IC,H,W>& x, int training){
+    void forward_simd(tensor<real,maxB,IC,H,W>& x, int training){(void)training;
+        idx_t B = x.n0;        // batch size
+        y.set_n0(B);
+        x_ptr = &x;            // save pointer to input for backward
+
+        real v;
         #ifdef __ARM_64BIT_STATE
-            // we will use data types and functions that are only available if we're on an ARM platform
-
-            (void)training;
-            idx_t B = x.n0;        // batch size
-            y.set_n0(B);
-            x_ptr = &x;            // save pointer to input for backward
-
             float32x4_t vec;
-            real v;
+        #else
+            realv vec;
+        #endif
 
-            for(idx_t s = 0;s < B;s++){                             // for each sample
-                for(idx_t oc = 0;oc < OC;oc++){                     // for each output channel
-                    for(idx_t i = 0;i < H - K + 1;i++){             // for each output pixel
-                        idx_t j = 0;
+        for(idx_t s = 0;s < B;s++){                             // for each sample
+            for(idx_t oc = 0;oc < OC;oc++){                     // for each output channel
+                for(idx_t i = 0;i < H - K + 1;i++){             // for each output pixel
+                    idx_t j = 0;
+                    #ifdef __ARM_64BIT_STATE
                         for(;j + 3 < W - K + 1;j += 4){             // for each output pixel
                             /*
                                 We will apply simd to the loop over j (over the columns in x), meaning we compute two output pixels simultaneously.
@@ -285,22 +286,43 @@ struct Convolution2D{
                             y.V4(s,oc,i,j) = vec;
                             // y(s,oc,i,j) = v + b(oc);
                         }
-                        for(;j < W - K + 1;j++){      // remainder iterations - this the code from forward_cpu_base
-                            // calculate a single output pixel
-                            v = 0.0;
-                            for(idx_t ic = 0;ic < IC;ic++){ // input channel
+                    #else
+                        for(;j + L - 1 < W - K + 1;j += L){             // for each output pixel
+                            /*
+                                We will apply simd to the loop over j (over the columns in x), meaning we compute two output pixels simultaneously.
+                                The vectors will contain four lanes and we'll deal with the remainder iterations explicitly.
+                            */
+                            vec = _mm512_set1_ps(0);
+                            for(idx_t ic = 0;ic < IC;ic++){                       // input channel
                                 for(idx_t di = 0;di < K;di++){
                                     for(idx_t dj = 0;dj < K;dj++){
-                                        v += w(oc,ic,di,dj) * x(s,ic,i+di,j+dj);
+                                        vec = _mm512_fmadd_ps(x.V16(s,ic,i+di,j+dj),_mm512_set1_ps(w(oc,ic,di,dj)),vec);
+                                            // _mm512_fmadd_ps(a,b,c) = a * b + c
+                                        // v += w(oc,ic,di,dj) * x(s,ic,i+di,j+dj);
                                     }
                                 }
                             }
-                            y(s,oc,i,j) = v + b(oc);
+                            vec = _mm512_add_ps(vec,_mm512_set1_ps(b(oc)));
+                            y.V16(s,oc,i,j) = vec;
+                            // y(s,oc,i,j) = v + b(oc);
                         }
+                    #endif
+
+                    for(;j < W - K + 1;j++){      // remainder iterations - this the code from forward_cpu_base
+                        // calculate a single output pixel
+                        v = 0.0;
+                        for(idx_t ic = 0;ic < IC;ic++){ // input channel
+                            for(idx_t di = 0;di < K;di++){
+                                for(idx_t dj = 0;dj < K;dj++){
+                                    v += w(oc,ic,di,dj) * x(s,ic,i+di,j+dj);
+                                }
+                            }
+                        }
+                        y(s,oc,i,j) = v + b(oc);
                     }
                 }
             }
-        #endif
+        }
     }
 
     /**
@@ -368,8 +390,8 @@ struct Convolution2D{
      @sa forward
      @sa forward_simd
     */
-    void forward_cpu_simd_arm(tensor<real,maxB,IC,H,W>& x, int training){
-        forward_simd_arm(x, training);
+    void forward_cpu_simd(tensor<real,maxB,IC,H,W>& x, int training){
+        forward_simd(x, training);
     }
 
     /**
@@ -395,8 +417,8 @@ struct Convolution2D{
             forward_cuda_base(x, training); break;
         case algo_cpu_test:
             forward_cpu_test(x, training); break;
-        // case algo_cpu_simd_arm:
-        //     forward_cpu_simd_arm(x, training); break;
+        case algo_cpu_simd:
+            forward_cpu_simd(x, training); break;
         default:
             if(opt.cuda_algo){
                 forward_cuda_base(x, training);
@@ -499,74 +521,109 @@ struct Convolution2D{
      @sa backward_base
     */
     __device__ __host__ 
-    void backward_simd_arm(tensor<real,maxB,OC,H-K+1,W-K+1>& gy){
+    void backward_simd(tensor<real,maxB,OC,H-K+1,W-K+1>& gy){
+        idx_t B = gy.n0;
+        gw.set_n0(OC);
+        gb.set_n0(OC);
+        gx.set_n0(B);
+
+        real v;
         #ifdef __ARM_64BIT_STATE
-            idx_t B = gy.n0;
-            gw.set_n0(OC);
-            gb.set_n0(OC);
-            gx.set_n0(B);
-
-            real v;
             float32x4_t vec;
+        #else
+            realv vec;
+        #endif
 
-            tensor<real,maxB,IC,H,W>& x = *x_ptr;
+        tensor<real,maxB,IC,H,W>& x = *x_ptr;
             
-            for(idx_t oc = 0;oc < OC;oc++){                                         // output channel
-                for(idx_t ic = 0;ic < IC;ic++){                                     // input channel
-                    for(idx_t di = 0;di < K;di++){                                  // kernel pixel
-                        for(idx_t dj = 0;dj < K;dj++){                              // kernel pixel
-                            // I will parallelize the loop over j since it accesses elements in the
-                            // last dimension of gy. The elements of the vector are summed in the end
-                            // using vaddvq_f32.
+        for(idx_t oc = 0;oc < OC;oc++){                                         // output channel
+            for(idx_t ic = 0;ic < IC;ic++){                                     // input channel
+                for(idx_t di = 0;di < K;di++){                                  // kernel pixel
+                    for(idx_t dj = 0;dj < K;dj++){                              // kernel pixel
+                        // I will parallelize the loop over j since it accesses elements in the
+                        // last dimension of gy. The elements of the vector are summed in the end
+                        // using vaddvq_f32.
+                        v = 0;
+                        #ifdef __ARM_64BIT_STATE
                             vec = vdupq_n_f32(0);
-                            v = 0;
+                        #else
+                            vec = _mm512_set1_ps(0);
+                        #endif
 
-                            for(idx_t s = 0;s < B;s++){                             // training samples
-                                for(idx_t i = 0;i < H - K + 1;i++){                 // sample pixel
-                                    idx_t j = 0;
-                                    for(;j + 4 < W - K + 1;j+=4){                   // sample pixel
+                        for(idx_t s = 0;s < B;s++){                             // training samples
+                            for(idx_t i = 0;i < H - K + 1;i++){                 // sample pixel
+                                idx_t j = 0;
+                                #ifdef __ARM_64BIT_STATE
+                                    for(;j + 3 < W - K + 1;j+=4){                   // sample pixel
                                         vec = vfmaq_f32(vec,gy.V4(s,oc,i,j),x.V4(s,ic,i+di,j+dj));
                                             // vfma(a,b,c) = a + b * c
                                     }
-                                    for(;j < W - K + 1;j++){                        // remainder iterations
-                                        v += gy(s,oc,i,j) * x(s,ic,i+di,j+dj);
+                                #else
+                                    for(;j + L - 1 < W - K + 1;j+=L){                   // sample pixel
+                                        vec = _mm512_fmadd_ps(gy.V16(s,oc,i,j),x.V16(s,ic,i+di,j+dj),vec);
+                                            // _mm512_fmadd_ps(a,b,c) = a * b + c
                                     }
+                                #endif
+
+                                for(;j < W - K + 1;j++){                        // remainder iterations
+                                    v += gy(s,oc,i,j) * x(s,ic,i+di,j+dj);
                                 }
                             }
-                            gw(oc,ic,di,dj) = v + vaddvq_f32(vec);
                         }
+                        #ifdef __ARM_64BIT_STATE
+                            gw(oc,ic,di,dj) = v + vaddvq_f32(vec);
+                        #else
+                            gw(oc,ic,di,dj) = v + _mm512_reduce_add_ps(vec);
+                        #endif
                     }
                 }
             }
+        }
 
-            for(idx_t oc = 0;oc < OC;oc++){
+        for(idx_t oc = 0;oc < OC;oc++){
+            #ifdef __ARM_64BIT_STATE
                 vec = vdupq_n_f32(0);
-                v = 0.0;
-                for(idx_t s = 0;s < B;s++){
-                    for(idx_t i = 0;i < H - K + 1;i++){
-                        idx_t j = 0;
-                        for(;j + 4 < W - K + 1;j+=4){
+            #else
+                vec = _mm512_set1_ps(0);
+            #endif
+            v = 0;
+            for(idx_t s = 0;s < B;s++){
+                for(idx_t i = 0;i < H - K + 1;i++){
+                    idx_t j = 0;
+                    #ifdef __ARM_64BIT_STATE
+                        for(;j + 3 < W - K + 1;j+=4){
                             vec = vaddq_f32(vec,gy.V4(s,oc,i,j));
                         }
-                        for(;j < W - K + 1;j++){                    // remainder iterations
-                            v += gy(s,oc,i,j);
+                    #else
+                        for(;j + L - 1 < W - K + 1;j+=L){
+                            vec = _mm512_add_ps(vec,gy.V16(s,oc,i,j));
                         }
+                    #endif
+
+                    for(;j < W - K + 1;j++){                    // remainder iterations
+                        v += gy(s,oc,i,j);
                     }
                 }
-                gb(oc) = v + vaddvq_f32(vec);
             }
+            #ifdef __ARM_64BIT_STATE
+                gb(oc) = v + vaddvq_f32(vec);
+            #else
+                gb(oc) = v + _mm512_reduce_add_ps(vec);
+            #endif
+        }
 
-            // float32x2_t vec2;
-            for(idx_t s = 0;s < B;s++){
-                for(idx_t ic = 0;ic < IC;ic++){
-                    for(idx_t i = 0;i < H;i++){
-                        idx_t j = 0;
+        // float32x2_t vec2;
+        for(idx_t s = 0;s < B;s++){
+            for(idx_t ic = 0;ic < IC;ic++){
+                for(idx_t i = 0;i < H;i++){
+                    idx_t j = 0;
+                    #ifdef __ARM_64BIT_STATE
                         for(;j + 3 > W;j+=4){
                             /*
                              the inaccuracy occurs when these loops use the float32x4_t or
                              float32x2_t type... whyever that is
                             */
-                            vec = vdupq_n_f32(0.0);
+                            vec = vdupq_n_f32(0);
                             // vec2 = vdup_n_f32(0.0);
                             for(idx_t oc = 0;oc < OC;oc++){
                                 for(idx_t di = 0;di < K;di++){
@@ -583,23 +640,46 @@ struct Convolution2D{
                             gx.V4(s,ic,i,j) = vec;
                             // gx.V2(s,ic,i,j) = vec2;
                         }
-                        for(;j < W;j++){                            // remainder iterations
-                            v = 0;
+                    #else
+                        for(;j + L - 1 > W;j+=L){
+                            /*
+                             the inaccuracy occurs when these loops use the float32x4_t or
+                             float32x2_t type... whyever that is
+                            */
+                            vec = _mm512_set1_ps(0);
+                            // vec2 = vdup_n_f32(0.0);
                             for(idx_t oc = 0;oc < OC;oc++){
                                 for(idx_t di = 0;di < K;di++){
                                     for(idx_t dj = 0;dj < K;dj++){
                                         if(0 <= i - di && i - di < H - K + 1 && 0 <= j - dj && j - dj < W - K + 1){
-                                            v += gy(s,oc,i-di,j-dj) * w(oc,ic,di,dj);
+                                            vec = _mm512_fmadd_ps(gy.V16(s,oc,i-di,j-dj),_mm512_set1_ps(w(oc,ic,di,dj)),vec);
+                                                // _mm512_fmadd_ps(a,b,c) = a * b + c
+                                            // v += gy(s,oc,i-di,j-dj) * w(oc,ic,di,dj);
                                         }
                                     }
                                 }
                             }
-                            gx(s,ic,i,j) = v;
+                            gx.V16(s,ic,i,j) = vec;
+                            // gx.V2(s,ic,i,j) = vec2;
                         }
+                    #endif
+
+                    for(;j < W;j++){                            // remainder iterations
+                        v = 0;
+                        for(idx_t oc = 0;oc < OC;oc++){
+                            for(idx_t di = 0;di < K;di++){
+                                for(idx_t dj = 0;dj < K;dj++){
+                                    if(0 <= i - di && i - di < H - K + 1 && 0 <= j - dj && j - dj < W - K + 1){
+                                        v += gy(s,oc,i-di,j-dj) * w(oc,ic,di,dj);
+                                    }
+                                }
+                            }
+                        }
+                        gx(s,ic,i,j) = v;
                     }
                 }
             }
-        #endif
+        }
     }
 
     /**
@@ -652,8 +732,8 @@ struct Convolution2D{
      @sa backward
      @sa backward_base
     */
-    void backward_cpu_simd_arm(tensor<real,maxB,OC,H-K+1,W-K+1>& gy){
-        backward_simd_arm(gy);
+    void backward_cpu_simd(tensor<real,maxB,OC,H-K+1,W-K+1>& gy){
+        backward_simd(gy);
     }
 
     /**
@@ -681,8 +761,8 @@ struct Convolution2D{
             backward_cpu_base(gy); break;
         case algo_cuda_base:
             backward_cuda_base(gy); break;
-        case algo_cpu_simd_arm:
-            backward_cpu_simd_arm(gy); break;
+        case algo_cpu_simd:
+            backward_cpu_simd(gy); break;
         default:
             if(opt.cuda_algo){
                 backward_cuda_base(gy);
