@@ -120,7 +120,7 @@ static algo_t parse_algo(const char * s) {
         #ifdef __ARM_64BIT_STATE
             return algo_cpu_simd_arm;
         #else
-            return algo_invalid
+            return algo_invalid;
         #endif
     }else if(strcmp(s, "cpu_omp") == 0){
         return algo_cpu_omp;

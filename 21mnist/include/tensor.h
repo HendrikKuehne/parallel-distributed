@@ -1,6 +1,6 @@
 /**
-     @file tensor.h
-     @brief vectors, matrices, and multi-dimensional arrays
+ @file tensor.h
+ @brief vectors, matrices, and multi-dimensional arrays
  */
 
 #pragma once
@@ -12,6 +12,7 @@
 #include "mnist_util.h"
 
 #ifdef __ARM_64BIT_STATE
+
 /**
  @brief Used in returning a write-safe simd vector from a tensor
  */
@@ -29,7 +30,22 @@ static float32x4_t& V4(T& address){return *((float32x4_t*)address);}
  */
 template<typename T>
 static float16x8_t& V8(T& address){return *((float16x8_t*)address);}
+
+#else
+
+// defining the vector type for x86 architectures:
+typedef real realv __attribute__((vector_size(64),__may_alias__,aligned(sizeof(real))));
+enum {L = sizeof(realv)/sizeof(real)};
+
+/**
+ @brief Used in returning a write-safe simd vector from a tensor
+ */
+template<typename T>
+static realv& V16(T& p){return *((realv*)&p);}
+
 #endif
+
+// static floatv& V16_c(T& p){return *((floatv*)&p);}
 
 /**
  @brief aux function for array bounds checking
@@ -443,6 +459,7 @@ struct tensor{
     }
 
     #ifdef __ARM_64BIT_STATE
+    
     /**
      @brief return a simd vector over the last dimension of the tensor x at location i0,i1,i2,i3. tensor::V is write-safe!
      @param i0,i1,i2,i3 indices
@@ -493,6 +510,27 @@ struct tensor{
 
         return ::V8(address);
     }
+    
+    #else
+    
+    /**
+     @brief return a simd vector over the last dimension of the tensor x at location i0,i1,i2,i3. tensor::V is write-safe!
+     @param i0,i1,i2,i3 indices
+     @return A vector containing x[i0][i1][i2][i3:i3+16]
+     */
+    realv& V16(idx_t i0,idx_t i1,idx_t i2,idx_t i3){
+        range_chk(0,i0,n0);
+        range_chk(0,i1,N1);
+        range_chk(0,i2,N2);
+        range_chk(0,i3+L-1,N3);
+
+        tensor<T,N0,N1,N2,N3>& a = *this;
+        // T* address = &(a(i0,i1,i2,i3));
+
+        // return ::V16(w[i0][i1][i2][i3]);
+        return ::V16(a(i0,i1,i2,i3));
+    }
+    
     #endif
 
     /**

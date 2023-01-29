@@ -26,8 +26,8 @@
 #   for specific compilers
 #
 vers :=
-vers += test
 vers += cpu_base
+vers += test
 #vers += cuda_base
 #vers += fast
 
@@ -42,12 +42,15 @@ vers += cpu_base
 #
 flags :=
 #flags += -O0
-flags += -O3
 flags += -DMAX_BATCH_SIZE=64
 flags += -DARRAY_INDEX_CHECK=0
 #flags += -DARRAY_INDEX_CHECK=1
 flags += -Dreal_type=float
 #flags += -Dreal_type=double
+
+ifeq ($(shell uname), Darwin)     # The -O3 option causes segmentation faults in x86
+flags += -O3
+endif
 
 ldflags :=
 
@@ -69,6 +72,11 @@ clang++_flags += -Wextra
 clang++_flags += -Wno-strict-overflow
 clang++_flags += -gdwarf-4
 clang++_ldflags :=
+
+ifeq ($(shell uname), Linux)
+clang++_flags += -mavx512f
+clang++_flags += -mfma
+endif
 
 #
 # flags given to all versions compiled by nvc++ 
@@ -216,6 +224,9 @@ jupyter-env :
 	export PATH=/home/share/llvm/bin:$$PATH
 	which nvcc
 	which clang++
+
+info :
+	@echo "uname: $(shell uname)"
 
 doc : docs/doxy/html/index.html 
 doc : docs/tags/HTML/index.html
