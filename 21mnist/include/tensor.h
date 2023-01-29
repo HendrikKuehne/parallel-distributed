@@ -461,11 +461,14 @@ struct tensor{
     #ifdef __ARM_64BIT_STATE
     
     /**
-     @brief return a simd vector over the last dimension of the tensor x at location i0,i1,i2,i3. tensor::V is write-safe!
+     @brief return a simd vector of the tensor x at location i0,i1,i2,i3. tensor::V is write-safe! The vector
+     is returned starting from i0,i1,i2,i3 according to the memeory layout - there is no check if this is
+     sensible! If, for example, i2 = i3 = 0, the returned values are only consecutive in the tensor if the
+     dimensions two and three have size one.
      @param i0,i1,i2,i3 indices
      @return A vector containing x[i0][i1][i2][i3:i3+2]
      */
-    float32x2_t& V2(idx_t i0,idx_t i1,idx_t i2,idx_t i3){
+    float32x2_t& V2(idx_t i0,idx_t i1=0,idx_t i2=0,idx_t i3=0){
         range_chk(0,i0,n0);
         range_chk(0,i1,N1);
         range_chk(0,i2,N2);
@@ -478,15 +481,18 @@ struct tensor{
     }
 
     /**
-     @brief return a simd vector over the last dimension of the tensor x at location i0,i1,i2,i3. tensor::V is write-safe!
+     @brief return a simd vector of the tensor x at location i0,i1,i2,i3. tensor::V is write-safe! The vector
+     is returned starting from i0,i1,i2,i3 according to the memeory layout - there is no check if this is
+     sensible! If, for example, i2 = i3 = 0, the returned values are only consecutive in the tensor if the
+     dimensions two and three have size one.
      @param i0,i1,i2,i3 indices
      @return A vector containing x[i0][i1][i2][i3:i3+4]
      */
-    float32x4_t& V4(idx_t i0,idx_t i1,idx_t i2,idx_t i3){
-        range_chk(0,i0,n0);
-        range_chk(0,i1,N1);
-        range_chk(0,i2,N2);
-        range_chk(0,i3+3,N3);
+    float32x4_t& V4(idx_t i0,idx_t i1=0,idx_t i2=0,idx_t i3=0){
+        // range_chk(0,i0,n0);
+        // range_chk(0,i1,N1);
+        // range_chk(0,i2,N2);
+        // range_chk(0,i3+3,N3);
 
         tensor<T,N0,N1,N2,N3>& a = *this;
         T* address = &(a(i0,i1,i2,i3));
@@ -495,15 +501,18 @@ struct tensor{
     }
 
     /**
-     @brief return a simd vector over the last dimension of the tensor x at location i0,i1,i2,i3. tensor::V is write-safe!
+     @brief return a simd vector of the tensor x at location i0,i1,i2,i3. tensor::V is write-safe! The vector
+     is returned starting from i0,i1,i2,i3 according to the memeory layout - there is no check if this is
+     sensible! If, for example, i2 = i3 = 0, the returned values are only consecutive in the tensor if the
+     dimensions two and three have size one.
      @param i0,i1,i2,i3 indices
      @return A vector containing x[i0][i1][i2][i3:i3+8]
      */
-    float16x8_t& V8(idx_t i0,idx_t i1,idx_t i2,idx_t i3){
-        range_chk(0,i0,n0);
-        range_chk(0,i1,N1);
-        range_chk(0,i2,N2);
-        range_chk(0,i3+7,N3);
+    float16x8_t& V8(idx_t i0,idx_t i1=0,idx_t i2=0,idx_t i3=0){
+        // range_chk(0,i0,n0);
+        // range_chk(0,i1,N1);
+        // range_chk(0,i2,N2);
+        // range_chk(0,i3+7,N3);
 
         tensor<T,N0,N1,N2,N3>& a = *this;
         T* address = &(a(i0,i1,i2,i3));

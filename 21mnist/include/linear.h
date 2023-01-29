@@ -473,9 +473,11 @@ struct Linear{
 
             /**
              Since we can only turn contiguous values into vectors, i.e. the last dimension of a tensor, we
-             will shift the indices of gy two times such that N is the size of the last dimension of gy
+             will shift the indices of gy two times such that N is the size of the last dimension of gy.
+             UPDATE: This is not necessary since I can easily return vectors over the other dimensions of
+             a tensor if the following dimensions have size 1!
             */
-            tensor<real,1,1,M,N> gy_tmp = gy.index_shift().index_shift();
+            // tensor<real,1,1,M,N> gy_tmp = gy.index_shift().index_shift();
 
             real v = 0;
             float32x4_t vec;
@@ -489,7 +491,7 @@ struct Linear{
                         for(;j + 3 < N;j+=4){
                             vec = vdupq_n_f32(0);
                             for(idx_t i = 0;i < m;i++){
-                                vec = vfmaq_f32(vec,gy_tmp.V4(0,0,i,j),vdupq_n_f32(x(i,k0,k1,k2)));
+                                vec = vfmaq_f32(vec,gy.V4(i,j),vdupq_n_f32(x(i,k0,k1,k2)));
                                     // vfma(a,b,c) = a + b * c
                                 // v += gy(i,j) * x(i,k0,k1,k2);
                             }
@@ -511,19 +513,18 @@ struct Linear{
             for(;j + 3 < N;j+=4){
                 vec = vdupq_n_f32(0);
                 for(idx_t i = 0;i < m;i++){
-                    vec = vaddq_f32(vec,gy_tmp.V4(0,0,i,j));
+                    vec = vaddq_f32(vec,gy.V4(i,j));
                     // v += gy(i, j);
                 }
-                gb_tmp.V4(0,0,0,j) = vec;
+                gb.V4(0,0,0,j) = vec;
             }
             for(;j < N;j++){                // remainder iterations
                 v = 0;
                 for(idx_t i = 0;i < m;i++){
                     v += gy(i, j);
                 }
-                gb_tmp(0,0,0,j) = v;
+                gb(j) = v;
             }
-            for(idx_t j=0;j<N;j++){gb(j) = gb_tmp(0,0,0,j);}
 
             for(idx_t i = 0;i < m;i++){
                 for(idx_t k0 = 0;k0 < K0;k0++){
@@ -533,7 +534,7 @@ struct Linear{
                             v = 0;
                             vec = vdupq_n_f32(0);
                             for(;j + 3 < N;j+=4){
-                                vec = vfmaq_f32(vec,gy_tmp.V4(0,0,i,j),w.V4(k0,k1,k2,j));
+                                vec = vfmaq_f32(vec,gy.V4(i,j),w.V4(k0,k1,k2,j));
                                     // vfma(a,b,c) = a + b * c
                                 // v += gy(i,j) * w(k0,k1,k2,j);
                             }
