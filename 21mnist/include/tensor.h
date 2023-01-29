@@ -463,7 +463,7 @@ struct tensor{
     /**
      @brief return a simd vector over the last dimension of the tensor x at location i0,i1,i2,i3. tensor::V is write-safe!
      @param i0,i1,i2,i3 indices
-     @return A vector containing x[i0][i1][i2][i3:i3+2]
+     @return A vector containing x[i0][i1][i2][i3:i3+4]
      */
     float32x4_t& V4(idx_t i0,idx_t i1,idx_t i2,idx_t i3){
         range_chk(0,i0,n0);
@@ -480,7 +480,7 @@ struct tensor{
     /**
      @brief return a simd vector over the last dimension of the tensor x at location i0,i1,i2,i3. tensor::V is write-safe!
      @param i0,i1,i2,i3 indices
-     @return A vector containing x[i0][i1][i2][i3:i3+2]
+     @return A vector containing x[i0][i1][i2][i3:i3+8]
      */
     float16x8_t& V8(idx_t i0,idx_t i1,idx_t i2,idx_t i3){
         range_chk(0,i0,n0);

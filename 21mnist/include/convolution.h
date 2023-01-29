@@ -266,7 +266,7 @@ struct Convolution2D{
                 for(idx_t oc = 0;oc < OC;oc++){                     // for each output channel
                     for(idx_t i = 0;i < H - K + 1;i++){             // for each output pixel
                         idx_t j = 0;
-                        for(;j + 4 < W - K + 1;j += 4){             // for each output pixel
+                        for(;j + 3 < W - K + 1;j += 4){             // for each output pixel
                             /*
                                 We will apply simd to the loop over j (over the columns in x), meaning we compute two output pixels simultaneously.
                                 The vectors will contain four lanes and we'll deal with the remainder iterations explicitly.
@@ -395,8 +395,8 @@ struct Convolution2D{
             forward_cuda_base(x, training); break;
         case algo_cpu_test:
             forward_cpu_test(x, training); break;
-        case algo_cpu_simd_arm:
-            forward_cpu_simd_arm(x, training); break;
+        // case algo_cpu_simd_arm:
+        //     forward_cpu_simd_arm(x, training); break;
         default:
             if(opt.cuda_algo){
                 forward_cuda_base(x, training);
@@ -510,14 +510,14 @@ struct Convolution2D{
             float32x4_t vec;
 
             tensor<real,maxB,IC,H,W>& x = *x_ptr;
+            
             for(idx_t oc = 0;oc < OC;oc++){                                         // output channel
                 for(idx_t ic = 0;ic < IC;ic++){                                     // input channel
                     for(idx_t di = 0;di < K;di++){                                  // kernel pixel
                         for(idx_t dj = 0;dj < K;dj++){                              // kernel pixel
-                            /*
-                             I will parallelize the loop over j since it accesses elements in the last dimension
-                             of gy. The elements of the vector are summed in the end using vaddvq_f32.
-                            */
+                            // I will parallelize the loop over j since it accesses elements in the
+                            // last dimension of gy. The elements of the vector are summed in the end
+                            // using vaddvq_f32.
                             vec = vdupq_n_f32(0);
                             v = 0;
 
@@ -556,17 +556,24 @@ struct Convolution2D{
                 gb(oc) = v + vaddvq_f32(vec);
             }
 
+            // float32x2_t vec2;
             for(idx_t s = 0;s < B;s++){
                 for(idx_t ic = 0;ic < IC;ic++){
                     for(idx_t i = 0;i < H;i++){
                         idx_t j = 0;
-                        for(;j + 4 < W;j+=4){
-                            vec = vdupq_n_f32(0);
+                        for(;j + 3 > W;j+=4){
+                            /*
+                             the inaccuracy occurs when these loops use the float32x4_t or
+                             float32x2_t type... whyever that is
+                            */
+                            vec = vdupq_n_f32(0.0);
+                            // vec2 = vdup_n_f32(0.0);
                             for(idx_t oc = 0;oc < OC;oc++){
                                 for(idx_t di = 0;di < K;di++){
                                     for(idx_t dj = 0;dj < K;dj++){
                                         if(0 <= i - di && i - di < H - K + 1 && 0 <= j - dj && j - dj < W - K + 1){
                                             vec = vfmaq_f32(vec,gy.V4(s,oc,i-di,j-dj),vdupq_n_f32(w(oc,ic,di,dj)));
+                                            // vec2 = vfma_f32(vec2,gy.V2(s,oc,i-di,j-dj),vdup_n_f32(w(oc,ic,di,dj)));
                                                 // vfma(a,b,c) = a + b * c
                                             // v += gy(s,oc,i-di,j-dj) * w(oc,ic,di,dj);
                                         }
@@ -574,9 +581,10 @@ struct Convolution2D{
                                 }
                             }
                             gx.V4(s,ic,i,j) = vec;
+                            // gx.V2(s,ic,i,j) = vec2;
                         }
                         for(;j < W;j++){                            // remainder iterations
-                            v = 0.0;
+                            v = 0;
                             for(idx_t oc = 0;oc < OC;oc++){
                                 for(idx_t di = 0;di < K;di++){
                                     for(idx_t dj = 0;dj < K;dj++){
@@ -687,8 +695,11 @@ struct Convolution2D{
         return gx;
     }
 
-    /* member functions below assume data are on the host.
-         they are only for checking (debugging) implementations */
+    /*
+     member functions below assume data is on the host.
+     they are only for checking (debugging) implementations
+    */
+
     /**
      @brief randomly set all gradients to values between p and q
      @param (rg) random number generator
@@ -719,6 +730,7 @@ struct Convolution2D{
         w.add_(alpha, gw);
         b.add_(alpha, gb);
     }
+
     /**
      @brief take the inner product of gradients
      @param (o) the object to take the inner product with
@@ -766,9 +778,9 @@ int convolution_main(int argc, char ** argv){
     for(int iter = 0;iter < n_checks;iter++){
         printf("==== %d ====\n", iter);
         double e = grad_check<Convolution2D<maxB,IC,H,W,K,OC>,
-                                                    tensor<real,maxB,IC,H,W>,
-                                                    tensor<real,maxB,OC,H-K+1,W-K+1>,
-                                                    Convolution2DCfg>(opt, &lgr, rg, cfg, B);
+                              tensor<real,maxB,IC,H,W>,
+                              tensor<real,maxB,OC,H-K+1,W-K+1>,
+                              Convolution2DCfg>(opt, &lgr, rg, cfg, B);
         max_e = max_r(max_e, e);
         sum_e += e;
     }

@@ -256,7 +256,7 @@ struct Linear{
 
             for(idx_t i = 0;i < m;i++){
                 idx_t j = 0;
-                for(;j+4 < N;j+=4){
+                for(;j+3 < N;j+=4){
                     /**
                      We will parallelize the loop over j since we only have access to vectors taken from the last dimension of a tensor.
                      We'll use vectors with four lanes.
@@ -486,7 +486,7 @@ struct Linear{
                 for(idx_t k1 = 0;k1 < K1;k1++){
                     for(idx_t k2 = 0;k2 < K2;k2++){
                         idx_t j = 0;
-                        for(;j + 4 < N;j+=4){
+                        for(;j + 3 < N;j+=4){
                             vec = vdupq_n_f32(0);
                             for(idx_t i = 0;i < m;i++){
                                 vec = vfmaq_f32(vec,gy_tmp.V4(0,0,i,j),vdupq_n_f32(x(i,k0,k1,k2)));
@@ -508,7 +508,7 @@ struct Linear{
 
             tensor<real,1,1,1,N> gb_tmp; gb_tmp.init_const(1,0);
             idx_t j = 0;
-            for(;j + 4 < N;j+=4){
+            for(;j + 3 < N;j+=4){
                 vec = vdupq_n_f32(0);
                 for(idx_t i = 0;i < m;i++){
                     vec = vaddq_f32(vec,gy_tmp.V4(0,0,i,j));
@@ -532,7 +532,7 @@ struct Linear{
                             idx_t j = 0;
                             v = 0;
                             vec = vdupq_n_f32(0);
-                            for(;j + 4 < N;j+=4){
+                            for(;j + 3 < N;j+=4){
                                 vec = vfmaq_f32(vec,gy_tmp.V4(0,0,i,j),w.V4(k0,k1,k2,j));
                                     // vfma(a,b,c) = a + b * c
                                 // v += gy(i,j) * w(k0,k1,k2,j);
