@@ -250,7 +250,8 @@ struct Convolution2D{
      @sa forward_cuda_base_device
     */
     __device__ __host__ 
-    void forward_simd(tensor<real,maxB,IC,H,W>& x, int training){(void)training;
+    void forward_simd(tensor<real,maxB,IC,H,W>& x, int training){
+        (void)training;
         idx_t B = x.n0;        // batch size
         y.set_n0(B);
         x_ptr = &x;            // save pointer to input for backward

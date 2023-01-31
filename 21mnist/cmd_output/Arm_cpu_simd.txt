@@ -1,0 +1,18 @@
+752000: model building starts
+25088000: model building ends
+25124000: loading data from data
+99219000: use 1 data items out of 60000
+101700000: loading data from data
+117119000: use 0 data items out of 10000
+117286000: training starts
+135042000: Train Epoch: 1 [0/1 (0%)]	Loss: 2.286959
+151599000: Train Epoch: 2 [0/1 (0%)]	Loss: 0.927964
+167871000: Train Epoch: 3 [0/1 (0%)]	Loss: 0.004244
+184137000: Train Epoch: 4 [0/1 (0%)]	Loss: 0.001433
+200405000: Train Epoch: 5 [0/1 (0%)]	Loss: 0.002503
+216770000: Train Epoch: 6 [0/1 (0%)]	Loss: 0.000037
+233244000: Train Epoch: 7 [0/1 (0%)]	Loss: 0.000096
+249680000: Train Epoch: 8 [0/1 (0%)]	Loss: 0.000678
+266085000: Train Epoch: 9 [0/1 (0%)]	Loss: 0.000182
+282488000: Train Epoch: 10 [0/1 (0%)]	Loss: 0.000268
+282507000: training ends

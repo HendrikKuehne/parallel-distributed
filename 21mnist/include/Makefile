@@ -39,7 +39,7 @@ files += mnist
 #
 vers :=
 vers += cpu_base
-vers += cuda_base
+#vers += cuda_base
 #vers += fast
 
 #
@@ -55,8 +55,8 @@ flags :=
 #flags += -O0 -g
 flags += -O3
 flags += -DMAX_BATCH_SIZE=64
-flags += -DARRAY_INDEX_CHECK=0
-#flags += -DARRAY_INDEX_CHECK=1
+#flags += -DARRAY_INDEX_CHECK=0
+flags += -DARRAY_INDEX_CHECK=1
 flags += -Dreal_type=float
 #flags += -Dreal_type=double
 

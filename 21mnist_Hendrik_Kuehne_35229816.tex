@@ -1,0 +1,227 @@
+\documentclass{article}
+
+\input{latexauxfiles/packages.tex}
+\input{latexauxfiles/commands.tex}
+
+\numberwithin{equation}{section}
+\numberwithin{figure}{section}
+\numberwithin{table}{section}
+\addbibresource{./latexauxfiles/references.bib}
+
+\begin{document}
+    \begin{center}
+        Hendrik Kühne - 35229816
+    \end{center}
+
+    \tableofcontents
+    \vspace{\baselineskip}
+    \vspace{\baselineskip}
+
+    In the following, we will go into detail on how the code for a neural network from Ref.~\cite{Taura:parallel-distributed}
+    can be accelerated. The corresponding code can be found on GitHub \cite{Kühne:parallel-distributed}. After introducing
+    the modifications on data structures, we will show how parts of the neural network were accelerated and compare the
+    results.
+
+    We used SIMD to accelerate the forward and backward passes of convolutional and linear layers on two
+    hardware platforms: x86 and Arm.
+
+    \section{Vectorizing the \texorpdfstring{\mintinline{c++}{tensor}}{tensor} struct}
+    \label{sec:tensor}
+
+    In order to parallelize the neural network, we need a way to extract vectors from the \mintinline{c++}{tensor} instances
+    that form the backbone of the network. We use different vector types, depending on the hardware platform. We choose
+    those while keeping in mind that the default numerical type in Ref.~\cite{Taura:parallel-distributed} is
+    \mintinline{c++}{float}, which is a 32-Bit type. For achieving a high degree of parallelism, we want vectors with many
+    lanes.
+
+    \begin{itemize}
+        \item On Arm, there are 64-Bit (D-type) und 128-Bit (Q-type) vectors \cite{NEON:VectorDataTypes}. The best compromise
+        between the necessary accuracy and high parallelism is the \mintinline{c++}{float32x4_t} Q-type, which has four lanes
+        with 32-Bit precision.
+        \item On x86, we define a datatype \mintinline{c++}{realv} with
+        
+        \begin{minted}[linenos]{c++}
+            typedef float real;
+            typedef real realv __attribute__((vector_size(64),
+                                              __may_alias__,
+                                              aligned(sizeof(real))));
+        \end{minted}
+
+        which is a vector that comprises 16 32-Bit floating point values. This definition is added to the file
+        \texttt{tensor.h}.
+    \end{itemize}
+
+    Using the appropriate preprocessor directive, the necessary headers for the corresponding intrinsics are included with
+
+    \begin{minted}[linenos]{c++}
+        #ifdef __ARM_64BIT_STATE
+            #include<arm_neon.h>
+        #else
+            #include<x86intrin.h>
+        #endif
+    \end{minted}
+
+    where the variable \mintinline{c++}{__ARM_64BIT_STATE} is only defined on Arm-hardware. The headers \texttt{arm\_neon.h}
+    respectively \texttt{x86intrin.h} contain the vector instructions for Arm \cite{NEON:intrinsics} or x86
+    \cite{Intel:intrinsics} platforms.
+
+    We would now like to extract a vector from a \mintinline{c++}{tensor} instance. We do this by casting a pointer to the
+    memory to be vectorized as the corresponding vector type pointer and then returning the de-referenced pointer. To this
+    end, we add two functions per architecture to \texttt{tensor.h}; for Arm, these are
+
+    \begin{minted}[linenos]{c++}
+        template<typename T>
+        static float32x4_t& V4(T& address){return *((float32x4_t*)address);}
+
+        float32x4_t& tensor<T,N0,N1,N2,N3>::V4(idx_t i0,
+                                               idx_t i1=0,
+                                               idx_t i2=0,
+                                               idx_t i3=0){
+            tensor<T,N0,N1,N2,N3>& a = *this;
+            T* address = &(a(i0,i1,i2,i3));
+
+            return ::V4(address);
+        }
+    \end{minted}
+
+    where \mintinline{c++}{idx_t} is an integer type.
+
+    The function \mintinline{c++}{tensor<T,N0,N1,N2,N3>::V4} returns a pointer to the first value of the desired vector
+    by reference and \mintinline{c++}{V4} then returns a vector with four lanes. These functions are analogously named
+    \mintinline{c++}{tensor<T,N0,N1,N2,N3>::V16} and \mintinline{c++}{V16} on x86; they return a 16-lane vector using the
+    same mechanism. These vectors are write-safe, meaning values can be assigned to them.
+    
+    The default arguments in the function call \mintinline{c++}{tensor<T,N0,N1,N2,N3>::V4} /
+    \mintinline{c++}{tensor<T,N0,N1,N2,N3>::V16} serve an important purpose: Since we are casting a pointer to obtain a
+    SIMD-vector, we are assuming the data to be saved consecutively in memory. In general, we could thus only extract vectors
+    from the last dimension of a tensor since only these values are saved consecutively. In the special case that, from a
+    certain dimension onward, all dimensions of the tensor have size 1, this is not true. Consider for example the instance
+    \mintinline{c++}{tensor<real,5,5,1,1> a}. Since the last two dimensions have size one, the memory layout is actually
+    consecutive in dimension two. The default arguments \mintinline{c++}{idx_t i2 = 0} and \mintinline{c++}{idx_t i3 = 0}
+    then ensure that \mintinline{c++}{a.V4(2,0)} returns a vector containing the elements \mintinline{c++}{a(2,0:4,0,0)}.
+    
+    Using the above definitions for vector extraction from \mintinline{c++}{tensor} instances thus enables us to extract
+    vectors from the last dimension with size $\mintinline{c++}{Ni} > 1$.
+    
+    \section{Vectorizing the Convolutional and Linear Layers}
+    \label{sec:layers}
+
+    As mentioned earlier, we are vectorizing the forward and backward passes in \texttt{convolution.h} and \texttt{linear.h}.
+    To this end, we add the implementation \mintinline{c++}{algo_cpu_simd} which is set as current implementation with the
+    command line argument \texttt{-a cpu\_simd}. During computation, the functions
+
+    \begin{minted}[linenos]{c++}
+        void Convolution2D<maxB,IC,H,W,K,OC>::forward_simd(
+                    tensor<real,maxB,IC,H,W>& x, int training);
+        void Convolution2D<maxB,IC,H,W,K,OC>::backward_simd(
+                    tensor<real,maxB,OC,H-K+1,W-K+1>& gy);
+        void Linear<M,N,K0,K1,K2>::forward_simd(
+                    tensor<real,M,K0,K1,K2>& x, int training);
+        void Linear<M,N,K0,K1,K2>::backward_simd(
+                    tensor<real,M,N>& gy);
+    \end{minted}
+
+    are called; these are the vectorized versions of their \texttt{base} counterparts. The code for both Arm and SIMD is
+    contained in these functions; the preprocessor again chooses the right one based on the variable
+    \mintinline{c++}{__ARM_64BIT_STATE}. A code excerpt from the forward pass in linear layers is discussed in
+    Figure~\ref{layers:code:forward_simd}.
+
+    \begin{figure}[htb]
+        \begin{minted}[linenos]{c++}
+            float32x4_t vec;
+            real v;
+            for(idx_t i = 0;i < m;i++){
+                idx_t j = 0;
+                for(;j+3 < N;j+=4){
+                     /* We will parallelize the loop over j since we only
+                     have access to vectors taken from the last dimension
+                     of a tensor. We'll use vectors with four lanes. */
+                    vec = vdupq_n_f32(0);
+                    for(idx_t k0 = 0;k0 < K0;k0++){
+                        for(idx_t k1 = 0;k1 < K1;k1++){
+                            for(idx_t k2 = 0;k2 < K2;k2++){
+                                // v += x(i,k0,k1,k2) * w(k0,k1,k2,j);
+                                vec = vfmaq_f32(vec,
+                                                w.V4(k0,k1,k2,j),
+                                                vdupq_n_f32(x(i,k0,k1,k2)));
+                                    // vfma(a,b,c) = a + b * c
+                            }
+                        }
+                    }
+                    vec = vaddq_f32(vec,b.V4(j));
+                    y.V4(i,j) = vec;
+                    // y(i,j) = v + b(j);
+                }
+                for(;j < N;j++){
+                     /* remainder iterations - this is just the code from
+                     forward_base. */
+                    v = 0;
+                    for(idx_t k0 = 0;k0 < K0;k0++){
+                        for(idx_t k1 = 0;k1 < K1;k1++){
+                            for(idx_t k2 = 0;k2 < K2;k2++){
+                                v += x(i,k0,k1,k2) * w(k0,k1,k2,j);
+                            }
+                        }
+                    }
+                    y(i,j) = v + b(j);
+                }
+            }
+        \end{minted}
+        \caption{Arm code from \mintinline{c++}{void Linear::forward_simd}. As discussed in Section~\ref{sec:tensor}, we can
+        only extract vectors from the last dimension of a tensor with size $\mintinline{c++}{Ni} > 1$, there are thus two
+        loops that are candidates for vectorization: The ones over \mintinline{c++}{k2} or \mintinline{c++}{j}, respectively.
+        We choose the one over \mintinline{c++}{j} since the range $0 \leq \mintinline{c++}{k2} < 3$ is smaller than our
+        vector size. The function \mintinline{c++}{float32x4_t vdupq_n_f32(float32_t value)} then writes \mintinline{c++}{0}
+        to all lanes of \mintinline{c++}{vec}. \mintinline{c++}{float32x4_t vfmaq_f32(float32x4_t a, float32x4_t b, float32x4_t c)}
+        performs the fused multiply-add operation \mintinline{c++}{a = a + b * c} and \mintinline{c++}{vaddq_f32} performs
+        addition. We finally write the result back to the tensor using the custom function \mintinline{c++}{tensor::V4}. Since
+        the relevant tensor dimension is not necessarily divisible by four, we execute remainder iterations afterwards
+        using the original code.}
+        \label{layers:code:forward_simd}
+    \end{figure}
+
+    The other functions are vectorized in the same fashion: we identify the loop to be vectorized (one which iterates over the
+    last dimension of a tensor), re-define variables as vectors as necessary and replace the operations with the appropriate
+    intrinsics. An overview of the vector operations we used and their corresponding intrinsics can be found in
+    Table~\ref{layers:tab:intrinsics}.
+
+    \begin{table}[htb]
+        \begin{equation*}
+            \begin{array}{c|c|c}
+                \text{Operation} & \text{Arm} & \text{x86} \\ \hline
+                v_i = a & \mintinline{c++}{vdupq_n_f32(a)} & \mintinline{c++}{_mm512_set1_ps(a)} \\
+                v_i \rightarrow v_i + a_ib_i & \mintinline{c++}{vfmaq_f32(v,a,b)} & \mintinline{c++}{_mm512_fmadd_ps(a,b,v)} \\
+                v_i \rightarrow v_i + a_i & \mintinline{c++}{vaddq_f32(v,a)} & \mintinline{c++}{_mm512_add_ps(v,a)} \\
+                \sum_iv_i & \mintinline{c++}{vaddvq_f32(v)} & \mintinline{c++}{_mm512_reduce_add_ps(v)}
+            \end{array}
+        \end{equation*}
+        \caption{An overview of the vector operations we used and the corresponding intrinsics on Arm or x86
+        \cite{NEON:intrinsics,Intel:intrinsics}. All of them accept and return \mintinline{c++}{float32x4_t} respectively
+        \mintinline{c++}{__m512} types.}
+        \label{layers:tab:intrinsics}
+    \end{table}
+
+    \FloatBarrier
+    \section{Results}
+    \label{sec:results}
+
+    We first need to check that the results are indeed the same. We do this by training a network uing just one training
+    data point (one image from the mnist dataset) for \num{10} epochs. The results are displayed in
+    figures \ref{results:fig:cpu_base} and \ref{results:fig:cpu_simd}.
+
+    \begin{figure}[htb]
+        \inputminted{shell-session}{21mnist/cmd_output/Arm_cpu_base.txt}
+        \caption{The command-line output for our tests using the option \mintinline{shell-session}{-a cpu_base}.}
+        \label{results:fig:cpu_base}
+    \end{figure}
+
+    \begin{figure}[htb]
+        \inputminted{shell-session}{21mnist/cmd_output/Arm_cpu_simd.txt}
+        \caption{The command-line output for our tests using the option \mintinline{shell-session}{-a cpu_simd}.}
+        \label{results:fig:cpu_simd}
+    \end{figure}
+
+    We see that the loss values are indeed the same for all epochs, so our implementation is correct.
+
+    \printbibliography[heading=bibintoc]
+\end{document}
