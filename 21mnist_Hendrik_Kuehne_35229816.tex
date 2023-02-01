@@ -223,5 +223,31 @@
 
     We see that the loss values are indeed the same for all epochs, so our implementation is correct.
 
+    \begin{table}[htb]
+        \begin{center}
+            \begin{tabular}{c|cccc}
+                & \multicolumn{2}{c}{Arm} & \multicolumn{2}{c}{x86} \\ \hline
+                & Forward & Backward & Forward & Backward \\ \hline
+                Base & \SI{6423000}{\nano\second} & \SI{17356000}{\nano\second} & \SI{72391743}{\nano\second} & \SI{165699492}{\nano\second} \\
+                SIMD & \SI{2087000}{\nano\second} & \SI{10883000}{\nano\second} & \SI{31520540}{\nano\second} & \SI{112787278}{\nano\second}
+            \end{tabular}
+        \end{center}
+        \caption{The runtimes of the second convolutional layer on Arm and x86, with and without SIMD.}
+        \label{results:tab:runtimes_convolution}
+    \end{table}
+
+    \begin{table}[htb]
+        \begin{center}
+            \begin{tabular}{c|cccc}
+                & \multicolumn{2}{c}{Arm} & \multicolumn{2}{c}{x86} \\ \hline
+                & Forward & Backward & Forward & Backward \\ \hline
+                Base & \SI{1265000}{\nano\second} & \SI{1774000}{\nano\second} & \SI{10867237}{\nano\second} & \SI{19407642}{\nano\second} \\
+                SIMD & \SI{545000}{\nano\second} & \SI{457000}{\nano\second} & \SI{1787338}{\nano\second} & \SI{3546827}{\nano\second}
+            \end{tabular}
+        \end{center}
+        \caption{The runtimes of the first linear layer on Arm and x86, with and without SIMD.}
+        \label{results:tab:runtimes_linear}
+    \end{table}
+
     \printbibliography[heading=bibintoc]
 \end{document}

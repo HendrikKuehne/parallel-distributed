@@ -2,7 +2,6 @@
 *.log
 21mnist/exe/
 21mnist/include/exe/
-*.pdf
 .vscode/
 .personal_access_token.txt
 21mnist/test.cc
