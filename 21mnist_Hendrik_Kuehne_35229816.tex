@@ -1,3 +1,5 @@
+% ITC-LMS class page: https://itc-lms.ecc.u-tokyo.ac.jp/lms/course?idnumber=20224840-10040J01
+
 \documentclass{article}
 
 \input{latexauxfiles/packages.tex}
@@ -190,14 +192,14 @@
             \begin{array}{c|c|c}
                 \text{Operation} & \text{Arm} & \text{x86} \\ \hline
                 v_i = a & \mintinline{c++}{vdupq_n_f32(a)} & \mintinline{c++}{_mm512_set1_ps(a)} \\
-                v_i \rightarrow v_i + a_ib_i & \mintinline{c++}{vfmaq_f32(v,a,b)} & \mintinline{c++}{_mm512_fmadd_ps(a,b,v)} \\
-                v_i \rightarrow v_i + a_i & \mintinline{c++}{vaddq_f32(v,a)} & \mintinline{c++}{_mm512_add_ps(v,a)} \\
+                v_i + a_ib_i & \mintinline{c++}{vfmaq_f32(v,a,b)} & \mintinline{c++}{_mm512_fmadd_ps(a,b,v)} \\
+                v_i + a_i & \mintinline{c++}{vaddq_f32(v,a)} & \mintinline{c++}{_mm512_add_ps(v,a)} \\
                 \sum_iv_i & \mintinline{c++}{vaddvq_f32(v)} & \mintinline{c++}{_mm512_reduce_add_ps(v)}
             \end{array}
         \end{equation*}
         \caption{An overview of the vector operations we used and the corresponding intrinsics on Arm or x86
         \cite{NEON:intrinsics,Intel:intrinsics}. All of them accept and return \mintinline{c++}{float32x4_t} respectively
-        \mintinline{c++}{__m512} types.}
+        \mintinline{c++}{__m512} types or floating point numbers.}
         \label{layers:tab:intrinsics}
     \end{table}
 
@@ -206,8 +208,8 @@
     \label{sec:results}
 
     We first need to check that the results are indeed the same. We do this by training a network uing just one training
-    data point (one image from the mnist dataset) for \num{10} epochs. The results are displayed in
-    figures \ref{results:fig:cpu_base} and \ref{results:fig:cpu_simd}.
+    data point (one image from the mnist dataset) for \num{10} epochs. We used \mintinline{shell-session}{clang++} on both
+    platforms. The results are displayed in figures \ref{results:fig:cpu_base} and \ref{results:fig:cpu_simd}.
 
     \begin{figure}[htb]
         \inputminted{shell-session}{21mnist/cmd_output/Arm_cpu_base.txt}
@@ -221,15 +223,18 @@
         \label{results:fig:cpu_simd}
     \end{figure}
 
-    We see that the loss values are indeed the same for all epochs, so our implementation is correct.
+    We see that the loss values are indeed the same for all epochs, so our implementation is correct. The runtimes of
+    the accelerated layers are shown in Figure~\ref{results:tab:runtimes_convolution} and
+    Figure~\ref{results:tab:runtimes_linear}.
 
     \begin{table}[htb]
         \begin{center}
             \begin{tabular}{c|cccc}
                 & \multicolumn{2}{c}{Arm} & \multicolumn{2}{c}{x86} \\ \hline
                 & Forward & Backward & Forward & Backward \\ \hline
-                Base & \SI{6423000}{\nano\second} & \SI{17356000}{\nano\second} & \SI{72391743}{\nano\second} & \SI{165699492}{\nano\second} \\
-                SIMD & \SI{2087000}{\nano\second} & \SI{10883000}{\nano\second} & \SI{31520540}{\nano\second} & \SI{112787278}{\nano\second}
+                Base  & \SI{6423000}{\nano\second} & \SI{17356000}{\nano\second} & \SI{72391743}{\nano\second} & \SI{165699492}{\nano\second} \\
+                SIMD  & \SI{2087000}{\nano\second} & \SI{10883000}{\nano\second} & \SI{31520540}{\nano\second} & \SI{112787278}{\nano\second} \\ \hline
+                Ratio & \num{0.325}                & \num{0.627}                 & \num{0.435}                 & \num{0.681}
             \end{tabular}
         \end{center}
         \caption{The runtimes of the second convolutional layer on Arm and x86, with and without SIMD.}
@@ -241,13 +246,30 @@
             \begin{tabular}{c|cccc}
                 & \multicolumn{2}{c}{Arm} & \multicolumn{2}{c}{x86} \\ \hline
                 & Forward & Backward & Forward & Backward \\ \hline
-                Base & \SI{1265000}{\nano\second} & \SI{1774000}{\nano\second} & \SI{10867237}{\nano\second} & \SI{19407642}{\nano\second} \\
-                SIMD & \SI{545000}{\nano\second} & \SI{457000}{\nano\second} & \SI{1787338}{\nano\second} & \SI{3546827}{\nano\second}
+                Base  & \SI{1265000}{\nano\second} & \SI{1774000}{\nano\second} & \SI{10867237}{\nano\second} & \SI{19407642}{\nano\second} \\
+                SIMD  & \SI{545000}{\nano\second}  & \SI{457000}{\nano\second}  & \SI{1787338}{\nano\second}  & \SI{3546827}{\nano\second}  \\ \hline
+                Ratio & \num{0.401}                & \num{0.258}                & \num{0.164}                 & \num{0.183}
             \end{tabular}
         \end{center}
         \caption{The runtimes of the first linear layer on Arm and x86, with and without SIMD.}
         \label{results:tab:runtimes_linear}
     \end{table}
+
+    For the convolutional layer, the runtime is only \SI{30}{\percent} to \SI{70}{\percent} of the baseline version. The
+    linear layer enjoys speedups to between \SI{40}{\percent} and \SI{15}{\percent} of baseline runtime.
+    The ratios of the speedups relative to each other however are interesting. The convolutional layer's speedup is in
+    the same order of magnitude for Arm and x86, with the backward pass being less accelerated than the forward pass.
+    results for the linear layer however are completely different: The runtime ratio of the Arm forward pass is almost
+    twice as large as the one for the x86 forward pass, suggesting that parallelization was much more successful on the
+    x86 architecture. The backward pass was more accelerated on x86 as well, however the difference in ratios is only a
+    factor of \num{1.4} here.
+
+    The larger improvements for the linear layers may be due to their structure being simpler; the convolutional layers contain
+    many nested for loops. The compiler may thus more easily accry out further optimizations. The code was not accelerated as
+    much as one would expect in the ideal case: Since we used 16-lane vectors on x86, the maximum speedup we could achieve is
+    16-fold. On Arm, we would ideally see speedups by a factor of four. We reason that this is not the case because the sizes
+    of the dimensions over which we paralellized are rather small: In the convolutional layer, these sizes were \num{28},
+    \num{26} and \num{24}. This means that overheads and remainder iterations have a stronger effect.
 
     \printbibliography[heading=bibintoc]
 \end{document}
